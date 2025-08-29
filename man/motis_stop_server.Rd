@@ -13,5 +13,5 @@ motis_stop_server(server)
 Invisibly returns the (now stopped) \code{processx::process} object.
 }
 \description{
-Terminates a MOTIS server process launched by \code{motis_start_server()}.
+Terminates a server process from \code{motis_start_server()}.
 }

@@ -4,21 +4,11 @@
 \alias{motis_start_server}
 \title{Start a MOTIS Server Process}
 \usage{
-motis_start_server(
-  work_dir,
-  port = 8080L,
-  host = "127.0.0.1",
-  motis_path = NULL,
-  echo_cmd = FALSE
-)
+motis_start_server(work_dir, motis_path = NULL, echo_cmd = FALSE)
 }
 \arguments{
-\item{work_dir}{A string. The path to the directory where the \code{config.yml}
-will be created and where input files are scanned if not specified.}
-
-\item{port}{An integer. The TCP port for the server. Defaults to \code{8080}.}
-
-\item{host}{A string. The IP address to bind to. Defaults to \code{"127.0.0.1"}.}
+\item{work_dir}{A string. The path to the target directory where the assets
+will be placed.}
 
 \item{motis_path}{An optional string. The path to the \emph{directory} containing
 the \code{motis} executable. If \code{NULL}, the executable is assumed to be on the

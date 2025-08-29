@@ -16,8 +16,8 @@ motis_diagnose(
 
 \item{host}{A string. The host address to check.}
 
-\item{work_dir}{A string. The path to the directory where the \code{config.yml}
-will be created and where input files are scanned if not specified.}
+\item{work_dir}{A string. The path to the target directory where the assets
+will be placed.}
 
 \item{motis_path}{An optional string. The path to the \emph{directory} containing
 the \code{motis} executable. If \code{NULL}, the executable is assumed to be on the

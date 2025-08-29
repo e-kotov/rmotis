@@ -13,8 +13,8 @@ motis_import(
 )
 }
 \arguments{
-\item{work_dir}{A string. The path to the directory where the \code{config.yml}
-will be created and where input files are scanned if not specified.}
+\item{work_dir}{A string. The path to the target directory where the assets
+will be placed.}
 
 \item{motis_path}{An optional string. The path to the \emph{directory} containing
 the \code{motis} executable. If \code{NULL}, the executable is assumed to be on the
@@ -30,11 +30,5 @@ system \code{PATH}.}
 The path to the created \code{data} directory, invisibly.
 }
 \description{
-Runs the \verb{motis import} command to preprocess OSM and GTFS data based on a
-\code{config.yml} file.
-}
-\details{
-This function executes the main data preprocessing step, which can be
-time-consuming. It reads the \code{config.yml} in the \code{work_dir} and creates a
-\code{data} subdirectory containing the processed graph files.
+Runs \verb{motis import} after a \code{config.yml} has been created.
 }

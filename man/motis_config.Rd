@@ -2,29 +2,48 @@
 % Please edit documentation in R/processx.R
 \name{motis_config}
 \alias{motis_config}
-\title{Generate a MOTIS Configuration File}
+\title{Generate and Customize a MOTIS Configuration File}
 \usage{
 motis_config(
   work_dir,
   osm_pbf = NULL,
   gtfs_files = NULL,
+  assets_action = c("copy", "symlink", "none"),
   motis_path = NULL,
+  host = "127.0.0.1",
+  port = 8080L,
+  force = FALSE,
   echo_cmd = FALSE,
   echo = TRUE,
   spinner = TRUE
 )
 }
 \arguments{
-\item{work_dir}{A string. The path to the directory where the \code{config.yml}
-will be created and where input files are scanned if not specified.}
+\item{work_dir}{A string. The path to the target directory where the assets
+will be placed.}
 
-\item{osm_pbf}{An optional string. The path to the OpenStreetMap \code{.osm.pbf} file.}
+\item{osm_pbf}{An optional string. The path to a single OpenStreetMap \code{.osm.pbf} file.}
 
 \item{gtfs_files}{An optional character vector of paths to GTFS \code{.zip} files.}
+
+\item{assets_action}{A string specifying how to handle the assets. One of:
+\itemize{
+\item \code{"copy"} (default): Copies assets to the \code{work_dir}. Safe and works everywhere.
+\item \code{"symlink"}: Creates a symbolic link to the assets. Saves disk space,
+best for non-Windows systems. Will fall back to copying if it fails.
+\item \code{"none"}: Does nothing. For users who manage assets manually.
+}}
 
 \item{motis_path}{An optional string. The path to the \emph{directory} containing
 the \code{motis} executable. If \code{NULL}, the executable is assumed to be on the
 system \code{PATH}.}
+
+\item{host}{A string. The IP address for the server to bind to.}
+
+\item{port}{An integer. The TCP port for the server.}
+
+\item{force}{A logical. If \code{TRUE}, an existing \code{config.yml} file in the
+\code{work_dir} will be overwritten. Defaults to \code{FALSE}.}
 
 \item{echo_cmd}{A logical. If \code{TRUE}, prints the full command. Defaults to \code{FALSE}.}
 
@@ -36,12 +55,14 @@ system \code{PATH}.}
 The path to the generated \code{config.yml} file, invisibly.
 }
 \description{
-Runs the \verb{motis config} command to generate a \code{config.yml} file in the
-specified working directory.
+Generates a \code{config.yml} file and sets the server host and port.
 }
 \details{
-This function creates a configuration file based on the provided data inputs.
-If \code{osm_pbf} and \code{gtfs_files} are not provided, it will automatically scan
-the \code{work_dir} for any \code{.osm.pbf} and \code{.zip} files to include. The generated
-\code{config.yml} can be manually edited before running \code{motis_import()}.
+This function first runs \code{motis_add_assets}, then generates a base \code{config.yml},
+and finally updates the configuration file to include the specified HTTP
+server settings (\code{host} and \code{port}).
+
+If a \code{config.yml} file already exists in the \code{work_dir}, this function will
+stop with an error to prevent accidental overwriting. To proceed and
+overwrite the existing file, specify \code{force = TRUE}.
 }

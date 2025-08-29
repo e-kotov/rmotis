@@ -8,23 +8,38 @@ motis_prepare_data(
   work_dir,
   osm_pbf = NULL,
   gtfs_files = NULL,
+  assets_action = c("copy", "symlink", "none"),
   motis_path = NULL,
+  host = "127.0.0.1",
+  port = 8080L,
   echo_cmd = FALSE,
   echo = TRUE,
   spinner = TRUE
 )
 }
 \arguments{
-\item{work_dir}{A string. The path to the directory where the \code{config.yml}
-will be created and where input files are scanned if not specified.}
+\item{work_dir}{A string. The path to the target directory where the assets
+will be placed.}
 
-\item{osm_pbf}{An optional string. The path to the OpenStreetMap \code{.osm.pbf} file.}
+\item{osm_pbf}{An optional string. The path to a single OpenStreetMap \code{.osm.pbf} file.}
 
 \item{gtfs_files}{An optional character vector of paths to GTFS \code{.zip} files.}
+
+\item{assets_action}{A string specifying how to handle the assets. One of:
+\itemize{
+\item \code{"copy"} (default): Copies assets to the \code{work_dir}. Safe and works everywhere.
+\item \code{"symlink"}: Creates a symbolic link to the assets. Saves disk space,
+best for non-Windows systems. Will fall back to copying if it fails.
+\item \code{"none"}: Does nothing. For users who manage assets manually.
+}}
 
 \item{motis_path}{An optional string. The path to the \emph{directory} containing
 the \code{motis} executable. If \code{NULL}, the executable is assumed to be on the
 system \code{PATH}.}
+
+\item{host}{A string. The IP address for the server to bind to.}
+
+\item{port}{An integer. The TCP port for the server.}
 
 \item{echo_cmd}{A logical. If \code{TRUE}, prints the full command. Defaults to \code{FALSE}.}
 
@@ -33,11 +48,8 @@ system \code{PATH}.}
 \item{spinner}{A logical. If \code{TRUE}, shows a console spinner. Defaults to \code{TRUE}.}
 }
 \value{
-A list with elements:
-\item{work_dir}{The normalized path to the working directory.}
-\item{logs}{A list of \code{processx::run} results for the \code{config} and \code{import} steps.}
+The normalized path to the working directory, invisibly.
 }
 \description{
-A wrapper function that runs \code{motis_config} and then \code{motis_import} to
-fully prepare a data directory for the MOTIS server.
+A wrapper that runs \code{motis_config} and \code{motis_import}.
 }
