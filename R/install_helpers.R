@@ -152,3 +152,41 @@ get_platform_info <- function() {
   }
   list(os = os, arch = arch)
 }
+
+#' Resolve the Path to the MOTIS Executable
+#'
+#' Finds the MOTIS command, either from the system PATH or from a user-provided
+#' directory.
+#'
+#' @param motis_path An optional string specifying the path to the *directory*
+#'   containing the `motis` executable.
+#' @return The command to be executed (either "motis" or a full path).
+#' @noRd
+resolve_motis_cmd <- function(motis_path = NULL) {
+  if (is.null(motis_path)) {
+    # Rely on the system PATH
+    cmd <- Sys.which("motis")
+    if (!nzchar(cmd)) {
+      stop(
+        "'motis' executable not found on PATH. ",
+        "Please run `motis_install()` or provide its location via the `motis_path` argument.",
+        call. = FALSE
+      )
+    }
+    return("motis") # Return the name to be found on PATH
+  } else {
+    # Use the user-provided directory
+    exe_name <- if (.Platform$OS.type == "windows") "motis.exe" else "motis"
+    cmd <- normalizePath(file.path(motis_path, exe_name), mustWork = FALSE)
+    if (!file.exists(cmd)) {
+      stop(
+        "Could not find '",
+        exe_name,
+        "' in the specified `motis_path`: ",
+        motis_path,
+        call. = FALSE
+      )
+    }
+    return(cmd)
+  }
+}

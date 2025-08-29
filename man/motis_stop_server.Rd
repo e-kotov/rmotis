@@ -7,11 +7,11 @@
 motis_stop_server(server)
 }
 \arguments{
-\item{server}{A \code{processx::process} object returned by \code{motis_start_server()}.}
+\item{server}{A \code{processx::process} object from \code{motis_start_server()}.}
 }
 \value{
 Invisibly returns the (now stopped) \code{processx::process} object.
 }
 \description{
-Terminates a MOTIS server process that was launched by \code{motis_start_server()}.
+Terminates a MOTIS server process launched by \code{motis_start_server()}.
 }

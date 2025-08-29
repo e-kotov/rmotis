@@ -8,51 +8,27 @@ motis_start_server(
   work_dir,
   port = 8080L,
   host = "127.0.0.1",
+  motis_path = NULL,
   echo_cmd = FALSE
 )
 }
 \arguments{
-\item{work_dir}{A string. The path to the MOTIS working directory, which must
-contain the \code{data} subdirectory with preprocessed graph files.}
+\item{work_dir}{A string. The path to the directory where the \code{config.yml}
+will be created and where input files are scanned if not specified.}
 
-\item{port}{An integer. The TCP port for the server to listen on. Defaults
-to \code{8080}.}
+\item{port}{An integer. The TCP port for the server. Defaults to \code{8080}.}
 
-\item{host}{A string. The IP address to bind the server to. Defaults to
-\code{"127.0.0.1"} (localhost). Use \code{"0.0.0.0"} to make it accessible on the
-network.}
+\item{host}{A string. The IP address to bind to. Defaults to \code{"127.0.0.1"}.}
 
-\item{echo_cmd}{A logical. If \code{TRUE}, prints the full command being run to the
-console. Defaults to \code{FALSE}.}
+\item{motis_path}{An optional string. The path to the \emph{directory} containing
+the \code{motis} executable. If \code{NULL}, the executable is assumed to be on the
+system \code{PATH}.}
+
+\item{echo_cmd}{A logical. If \code{TRUE}, prints the full command. Defaults to \code{FALSE}.}
 }
 \value{
 A \code{processx::process} object for the running server.
 }
 \description{
 Launches the \verb{motis server} command as a background process.
-}
-\details{
-This function starts the MOTIS HTTP server, which will listen for API
-requests. It requires a prepared data directory (created by
-\code{motis_prepare_data()}). The function returns a \code{processx::process} object,
-which is essential for managing the server's lifecycle (e.g., checking if
-it's running, or stopping it with \code{motis_stop_server()}).
-}
-\examples{
-\dontrun{
-# First, prepare the data
-data_dir <- motis_prepare_data(...)$work_dir
-
-# Start the server
-server <- motis_start_server(work_dir = data_dir, port = 8081)
-
-# Check if it's running
-server$is_alive()
-
-# Open the UI in a browser
-motis_open_ui(server)
-
-# Stop the server when done
-motis_stop_server(server)
-}
 }
