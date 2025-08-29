@@ -1,277 +1,247 @@
-#' Plan a journey (MOTIS /api/v4/plan)
+#' Plan a journey between two points
 #'
-#' Computes optimal connections from one place to another using the MOTIS routing API v4.
-#' This wraps GET /api/v4/plan and exposes all documented query parameters.
-#' Arrays are encoded as comma-separated values (per OpenAPI explode: false).
+#' This function is a user-friendly wrapper around the MOTIS `plan` API.
+#' It accepts various common R data formats for locations, can plan
+#' multiple journeys at once, and can execute requests in parallel.
 #'
-#' @section Required:
-#' - fromPlace, toPlace: Either "lat,lon[,level]" or a stop id. Level is optional (defaults to 0).
-#'
-#' @section Response:
-#' A named list with (at least) the following elements (see schema details in the spec):
-#' requestParameters, debugOutput, from, to, direct, itineraries, previousPageCursor, nextPageCursor.
-#'
-#' @param fromPlace Character. Origin place ("lat,lon[,level]" or stop id). Required.
-#' @param toPlace Character. Destination place ("lat,lon[,level]" or stop id). Required.
-#' @param via Character vector (max length 2). Stop IDs to visit in order (coords not allowed). See also viaMinimumStay.
-#' @param viaMinimumStay Integer vector (max length 2). Minimum stay (minutes) for each via. If omitted, server uses 0,0 (staying in the same trip allowed).
-#' @param time POSIXct or RFC3339 string. Departure time (arriveBy=FALSE) or arrival time (arriveBy=TRUE). Defaults to server ‚Äúnow‚Äù if unset.
-#' @param maxTransfers Integer. Max allowed transfers (see spec warnings: too low may miss optimal journeys / slow performance).
-#' @param maxTravelTime Integer minutes. Max travel time. See warnings in spec.
-#' @param minTransferTime Integer minutes. Default 0. Minimum transfer time.
-#' @param additionalTransferTime Integer minutes. Default 0. Extra time reserved per transfer.
-#' @param transferTimeFactor Numeric. Default 1.0 (‚â•1). Multiplies min transfer times.
-#' @param maxMatchingDistance Numeric meters. Default 25. Max distance to match coords to street network.
-#' @param pedestrianProfile Character enum: "FOOT" (default), "WHEELCHAIR". Used for transfers/first‚Äìlast mile.
-#' @param elevationCosts Character enum: "NONE" (default), "LOW", "HIGH". Penalize incline for street segments (esp. BIKE).
-#' @param useRoutedTransfers Logical. Default FALSE. Use OSM-routed transfers.
-#' @param detailedTransfers Logical. Required by API. Default TRUE. If TRUE, compute transfer polylines and step instructions.
-#' @param joinInterlinedLegs Logical. Default TRUE. If FALSE, keep stay-seated legs separate (marks interlineWithPreviousLeg=TRUE).
-#' @param transitModes Character vector of modes. Default TRANSIT (all transit). Empty vector disables transit. See Mode enum in spec.
-#' @param directModes Character vector of non-transit modes for direct trips (default WALK). Direct results returned under direct. See notes in spec.
-#' @param preTransitModes Character vector. Default WALK. Allowed modes from from coordinate to first transit stop.
-#' @param postTransitModes Character vector. Default WALK. Allowed modes from last transit stop to to coordinate.
-#' @param directRentalFormFactors,preTransitRentalFormFactors,postTransitRentalFormFactors Character vectors (experimental). Allowed rental form factors (e.g., BICYCLE, SCOOTER_STANDING).
-#' @param directRentalPropulsionTypes,preTransitRentalPropulsionTypes,postTransitRentalPropulsionTypes Character vectors (experimental). Allowed propulsion types (e.g., HUMAN,ELECTRIC).
-#' @param directRentalProviders,preTransitRentalProviders,postTransitRentalProviders Character vectors (experimental). Allowed rental providers.
-#' @param ignoreDirectRentalReturnConstraints,ignorePreTransitRentalReturnConstraints,ignorePostTransitRentalReturnConstraints Logical (experimental). If TRUE, ignore rental return constraints for the respective segments.
-#' @param numItineraries Integer. Default 5. Used when timetableView=TRUE.
-#' @param pageCursor Character. Cursor for paging (copy from previous response).
-#' @param timetableView Logical. Default TRUE. Optimize ‚Äúlater departure‚Äù & ‚Äúearlier arrival‚Äù over a time window (see spec details & examples).
-#' @param arriveBy Logical. Default FALSE. If TRUE, time is arrival time; else departure time.
-#' @param searchWindow Integer seconds. Default 7200 (2h). Window length (interaction with arriveBy per spec).
-#' @param requireBikeTransport,requireCarTransport Logical. If TRUE, only trips that allow carriage of bike/car.
-#' @param maxPreTransitTime,maxPostTransitTime Integer seconds. Default 900 (15m) for first/last street legs.
-#' @param maxDirectTime Integer seconds. Default 1800 (30m) for direct connections.
-#' @param fastestDirectFactor Numeric (experimental). Default 1.0. Allow transit options slower than the fastest direct non-transit by this factor.
-#' @param timeout Integer seconds. API-side query timeout. (Not the HTTP client timeout.)
-#' @param passengers,luggage Integer (experimental). Passenger and luggage counts (for ODM/price).
-#' @param slowDirect Logical (experimental). Default TRUE. Add overtaken direct public transit connections.
-#' @param fastestSlowDirectFactor Numeric (experimental). Default 3.0. Factor applied to fastest slowDirect connection.
-#' @param withFares Logical (experimental). If TRUE, include fare information in response.
-#' @param withScheduledSkippedStops Logical. If TRUE, include intermediate stops where alight/board is not allowed.
-#' @param language Character BCP-47 (e.g., "en"). Label language for OSM/GTFS names.
-#' @param api_version API version to use. Defaults to "v3".
-#' @param base_url Base URL of the MOTIS server. Defaults to "https://api.transitous.org". See servers in the spec.
-#' @param req Optional. An existing httr2 request to add path/query onto (advanced).
-#' @param return Character. Specifies the return type. One of "list" (default, parsed from JSON), "itineraries" (a table of itineraries with combined leg geometries), "legs" (a table of individual journey legs), "response" (the full httr2 response object), "raw" (the raw response body), or "json" (the response body as a JSON string).
-#' @return Varies based on the `return` parameter. See the documentation for the `return` parameter for details.
-#'
-#' @examples
-#' \dontrun{
-#' # Berlin Brandenburg Gate to Hamburg Hbf, walking as direct fallback:
-#' res <- motis_plan(
-#' fromPlace = "52.5163,13.3777",
-#' toPlace = "53.5526,9.9943",
-#' directModes = "WALK",
-#' detailedTransfers = TRUE,
-#' return = "list"
-#' )
-#' length(res$itineraries)
-#'
-#' # Get itineraries as an sf data frame
-#' itineraries_sf <- motis_plan(
-#' fromPlace = "52.5163,13.3777",
-#' toPlace = "53.5526,9.9943",
-#' return = "itineraries"
-#' )
-#'
-#' # Get individual legs as an sf data frame
-#' legs_sf <- motis_plan(
-#' fromPlace = "52.5163,13.3777",
-#' toPlace = "53.5526,9.9943",
-#' return = "legs"
-#' )
-#' }
-#' @seealso [rm_trip()], [rm_stoptimes()] (endpoints /api/v4/trip, /api/v4/stoptimes)
+#' @param from The origin location(s). Can be a character vector of station IDs,
+#'   a data frame/tibble with ID or coordinate columns, an `sf`
+#'   object with POINT geometry, or a numeric matrix (`lon`, `lat`).
+#' @param to The destination location(s). Must be of the same type and length as `from`.
+#' @param time The departure or arrival time. Can be a POSIXct object (like from
+#'   `Sys.time()`) or a character string in ISO 8601 format (e.g., "2025-08-15T15:11:00Z").
+#'   Defaults to the current time.
+#' @param arrive_by Logical. If `TRUE`, `time` is treated as the arrival time.
+#'   Defaults to `FALSE` (departure time).
+#' @param from_id_col The name of the column in `from` containing station IDs.
+#'   Defaults to `"id"`.
+#' @param to_id_col The name of the column in `to` containing station IDs.
+#'   Defaults to `"id"`.
+#' @param output The desired output format. One of:
+#'   - `"itineraries"` (default): An `sf` data frame of itineraries.
+#'   - `"legs"`: An `sf` data frame of individual journey legs.
+#'   - `"travel_time_matrix_long"`: A long-format data frame with travel times.
+#'     For large queries, using `[motis_table()]` is recommended.
+#'   - `"travel_time_matrix_wide"`: A wide-format data frame (matrix) with travel times.
+#'     For large queries, using `[motis_table()]` is recommended.
+#'   - `"raw_list"`: The raw parsed JSON response as a list.
+#' @param parallel Logical. If `TRUE`, executes multiple requests in parallel.
+#'   Defaults to `FALSE`.
+#' @inheritDotParams motis.client::mc_plan -fromPlace -toPlace -time -arriveBy
+#' @return Depending on the `output` parameter, an `sf` data frame, a regular
+#'   data frame, or a list.
 #' @export
+#' @importFrom httr2 req_perform_parallel req_perform_sequential resp_body_json
+#' @importFrom purrr map map2 list_rbind map_dbl
+#' @importFrom rlang check_installed
+#' @importFrom tidyr pivot_wider
 motis_plan <- function(
-  fromPlace,
-  toPlace,
-  via = NULL,
-  viaMinimumStay = NULL,
-  time = NULL,
-  maxTransfers = NULL,
-  maxTravelTime = NULL,
-  minTransferTime = NULL,
-  additionalTransferTime = NULL,
-  transferTimeFactor = NULL,
-  maxMatchingDistance = NULL,
-  pedestrianProfile = NULL,
-  elevationCosts = NULL,
-  useRoutedTransfers = NULL,
-  detailedTransfers = TRUE,
-  joinInterlinedLegs = NULL,
-  transitModes = NULL,
-  directModes = NULL,
-  preTransitModes = NULL,
-  postTransitModes = NULL,
-  directRentalFormFactors = NULL,
-  preTransitRentalFormFactors = NULL,
-  postTransitRentalFormFactors = NULL,
-  directRentalPropulsionTypes = NULL,
-  preTransitRentalPropulsionTypes = NULL,
-  postTransitRentalPropulsionTypes = NULL,
-  directRentalProviders = NULL,
-  preTransitRentalProviders = NULL,
-  postTransitRentalProviders = NULL,
-  ignoreDirectRentalReturnConstraints = NULL,
-  ignorePreTransitRentalReturnConstraints = NULL,
-  ignorePostTransitRentalReturnConstraints = NULL,
-  numItineraries = NULL,
-  pageCursor = NULL,
-  timetableView = NULL,
-  arriveBy = NULL,
-  searchWindow = NULL,
-  requireBikeTransport = NULL,
-  requireCarTransport = NULL,
-  maxPreTransitTime = NULL,
-  maxPostTransitTime = NULL,
-  maxDirectTime = NULL,
-  fastestDirectFactor = NULL,
-  timeout = NULL,
-  passengers = NULL,
-  luggage = NULL,
-  slowDirect = NULL,
-  fastestSlowDirectFactor = NULL,
-  withFares = NULL,
-  withScheduledSkippedStops = NULL,
-  language = NULL,
-  base_url = getOption("rmotis.base_url", "https://api.transitous.org/"),
-  api_version = getOption("rmotis.api_version", "3"),
-  req = NULL,
-  return = "list"
+  from,
+  to,
+  time = Sys.time(),
+  arrive_by = FALSE,
+  from_id_col = "id",
+  to_id_col = "id",
+  ...,
+  output = c(
+    "itineraries",
+    "legs",
+    "travel_time_matrix_long",
+    "travel_time_matrix_wide",
+    "raw_list"
+  ),
+  parallel = FALSE
 ) {
-  if (missing(fromPlace) || missing(toPlace)) {
-    stop("fromPlace and toPlace are required.", call. = FALSE)
-  }
-  # helpers ---------------------------------------------------------------
-  collapse <- function(x) {
-    if (is.null(x)) NULL else paste(as.character(x), collapse = ",")
-  }
-  compact <- function(x) Filter(function(y) !is.null(y), x)
-  fmt_time <- function(x) {
-    if (inherits(x, "POSIXt")) {
-      # RFC3339 (Z) in UTC
-      format(as.POSIXct(x, tz = "UTC"), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
-    } else if (is.null(x)) {
-      NULL
-    } else {
-      as.character(x)
-    }
-  }
+  # --- 1. Argument and Input Validation ---
+  output <- match.arg(output)
+  stopifnot(
+    "Length of 'from' and 'to' must be equal" = NROW(from) == NROW(to)
+  )
 
-  # Prepare query (arrays use comma-separated encoding)
-  q <- compact(list(
-    fromPlace = fromPlace,
-    toPlace = toPlace,
-    via = collapse(via),
-    viaMinimumStay = collapse(viaMinimumStay),
-    time = fmt_time(time),
-    maxTransfers = maxTransfers,
-    maxTravelTime = maxTravelTime,
-    minTransferTime = minTransferTime,
-    additionalTransferTime = additionalTransferTime,
-    transferTimeFactor = transferTimeFactor,
-    maxMatchingDistance = maxMatchingDistance,
-    pedestrianProfile = pedestrianProfile,
-    elevationCosts = elevationCosts,
-    useRoutedTransfers = useRoutedTransfers,
-    detailedTransfers = detailedTransfers,
-    joinInterlinedLegs = joinInterlinedLegs,
-    transitModes = collapse(transitModes),
-    directModes = collapse(directModes),
-    preTransitModes = collapse(preTransitModes),
-    postTransitModes = collapse(postTransitModes),
-    directRentalFormFactors = collapse(directRentalFormFactors),
-    preTransitRentalFormFactors = collapse(preTransitRentalFormFactors),
-    postTransitRentalFormFactors = collapse(postTransitRentalFormFactors),
-    directRentalPropulsionTypes = collapse(directRentalPropulsionTypes),
-    preTransitRentalPropulsionTypes = collapse(preTransitRentalPropulsionTypes),
-    postTransitRentalPropulsionTypes = collapse(
-      postTransitRentalPropulsionTypes
-    ),
-    directRentalProviders = collapse(directRentalProviders),
-    preTransitRentalProviders = collapse(preTransitRentalProviders),
-    postTransitRentalProviders = collapse(postTransitRentalProviders),
-    ignoreDirectRentalReturnConstraints = ignoreDirectRentalReturnConstraints,
-    ignorePreTransitRentalReturnConstraints = ignorePreTransitRentalReturnConstraints,
-    ignorePostTransitRentalReturnConstraints = ignorePostTransitRentalReturnConstraints,
-    numItineraries = numItineraries,
-    pageCursor = pageCursor,
-    timetableView = timetableView,
-    arriveBy = arriveBy,
-    searchWindow = searchWindow,
-    requireBikeTransport = requireBikeTransport,
-    requireCarTransport = requireCarTransport,
-    maxPreTransitTime = maxPreTransitTime,
-    maxPostTransitTime = maxPostTransitTime,
-    maxDirectTime = maxDirectTime,
-    fastestDirectFactor = fastestDirectFactor,
-    timeout = timeout,
-    passengers = passengers,
-    luggage = luggage,
-    slowDirect = slowDirect,
-    fastestSlowDirectFactor = fastestSlowDirectFactor,
-    withFares = withFares,
-    withScheduledSkippedStops = withScheduledSkippedStops,
-    language = language
-  ))
+  time <- as.POSIXct(time)
 
-  # Build request ---------------------------------------------------------
-  if (is.null(req)) {
-    req <- httr2::request(base_url)
-  }
-  req <- req |>
-    httr2::req_url_path_append(glue::glue("api/v{api_version}/plan")) |>
-    httr2::req_url_query(!!!q) |>
-    httr2::req_headers(Accept = "application/json") |>
-    httr2::req_user_agent(paste0("rmotis (R/", getRversion(), ")"))
+  # --- 2. Format Inputs using the new helper ---
+  from_place <- .format_place(from, id_col = from_id_col)
+  to_place <- .format_place(to, id_col = to_id_col)
 
-  # Perform ---------------------------------------------------------------
-  resp <- httr2::req_perform(req)
-  httr2::resp_check_status(resp)
+  # --- 3. Build Requests ---
+  time_str <- paste0(format(time, "%Y-%m-%dT%H:%M:%S", tz = "UTC"), "Z")
 
-  if (return == "response") {
-    return(resp)
-  } else if (return == "raw") {
-    return(httr2::resp_body_raw(resp))
-  } else if (return == "json") {
-    return(httr2::resp_body_string(resp))
-  } else if (return %in% c("list", "parsed")) {
-    return(RcppSimdJson::fparse(
-      httr2::resp_body_raw(resp),
-      max_simplify_lvl = "list",
-      type_policy = "numbers",
-      int64_policy = "double"
-    ))
-  } else if (return == "itineraries") {
-    itineraries <- .flatten_itineraries(resp, include_direct = TRUE)
-    legs <- .flatten_legs(resp, decode_geom = TRUE, include_direct = TRUE)
+  # --- FIX: Safely handle ... to avoid passing unintended arguments ---
+  # Capture extra arguments intended for the backend API call
+  dots <- list(...)
+  # Remove arguments that are part of this wrapper's signature to avoid passing them down
+  dots[c(
+    "from",
+    "to",
+    "time",
+    "arrive_by",
+    "from_id_col",
+    "to_id_col",
+    "output",
+    "parallel"
+  )] <- NULL
 
-    if (nrow(itineraries) == 0) {
-      return(itineraries)
-    }
-
-    if (nrow(legs) > 0 && "geom" %in% names(legs)) {
-      itinerary_geoms <- legs |>
-        dplyr::group_by(.data$kind, .data$itin_id) |>
-        dplyr::summarise(geom = sf::st_combine(.data$geom), .groups = "drop")
-
-      itineraries <- itineraries |>
-        dplyr::left_join(itinerary_geoms, by = c("kind", "itin_id")) |>
-        sf::st_as_sf()
-    } else {
-      itineraries$geom <- sf::st_sfc(
-        lapply(1:nrow(itineraries), function(i) sf::st_multilinestring()),
-        crs = 4326
+  requests <- purrr::map2(
+    from_place,
+    to_place,
+    ~ {
+      # Combine the core arguments with the cleaned extra arguments
+      api_args <- c(
+        list(
+          fromPlace = .x,
+          toPlace = .y,
+          time = time_str,
+          arriveBy = arrive_by,
+          .build_only = TRUE
+        ),
+        dots
       )
-      itineraries <- sf::st_as_sf(itineraries)
+      # Use do.call to safely pass the arguments to the client function
+      do.call(motis.client::mc_plan, api_args)
     }
-    return(itineraries)
-  } else if (return == "legs") {
-    return(.flatten_legs(resp, decode_geom = TRUE, include_direct = TRUE))
+  )
+
+  # --- 4. Perform Requests ---
+  responses <- if (isTRUE(parallel)) {
+    httr2::req_perform_parallel(requests)
   } else {
-    stop(paste("Unsupported return type:", return), call. = FALSE)
+    httr2::req_perform_sequential(requests)
   }
+
+  # --- 5. Process and Parse Responses ---
+  parsed_responses <- purrr::map(responses, httr2::resp_body_json)
+
+  if (output == "raw_list") {
+    return(parsed_responses)
+  }
+
+  names(parsed_responses) <- seq_along(parsed_responses)
+
+  if (output == "itineraries") {
+    itineraries <- purrr::list_rbind(
+      purrr::map(parsed_responses, .flatten_itineraries, include_direct = TRUE),
+      names_to = "request_id"
+    )
+    return(itineraries)
+  } else if (output == "legs") {
+    legs <- purrr::list_rbind(
+      purrr::map(
+        parsed_responses,
+        .flatten_legs,
+        decode_geom = TRUE,
+        include_direct = TRUE
+      ),
+      names_to = "request_id"
+    )
+    return(legs)
+  } else if (
+    output %in% c("travel_time_matrix_long", "travel_time_matrix_wide")
+  ) {
+    # Add warning for large number of requests
+    if (NROW(from) > 10) {
+      warning(
+        "For large travel time matrices, using the dedicated `motis_table()` function is much more efficient.",
+        call. = FALSE
+      )
+    }
+
+    from_ids <- .get_ids(from, id_col = from_id_col)
+    to_ids <- .get_ids(to, id_col = to_id_col)
+
+    min_durations <- purrr::map_dbl(parsed_responses, function(resp) {
+      if (length(resp$journeys) == 0) {
+        return(NA_real_)
+      }
+      durations <- purrr::map_dbl(resp$journeys, "duration")
+      min(durations, na.rm = TRUE) / 60
+    })
+
+    long_matrix <- data.frame(
+      from_id = from_ids,
+      to_id = to_ids,
+      duration_minutes = min_durations
+    )
+
+    if (output == "travel_time_matrix_long") {
+      return(long_matrix)
+    } else {
+      # travel_time_matrix_wide
+      return(tidyr::pivot_wider(
+        long_matrix,
+        names_from = "to_id",
+        values_from = "duration_minutes"
+      ))
+    }
+  }
+}
+
+#' Internal helper to format location inputs
+#' @param place A data.frame, sf object, matrix, or character vector.
+#' @param id_col The name of the ID column to use.
+#' @return A character vector of station IDs or "lat,lon" strings.
+#' @noRd
+.format_place <- function(place, id_col = "id") {
+  if (inherits(place, "sf")) {
+    rlang::check_installed("sf")
+    coords <- sf::st_coordinates(place)
+    # --- FIX: Round coordinates to 6 decimal places to avoid server-side parsing errors ---
+    lat <- round(coords[, "Y"], 6)
+    lon <- round(coords[, "X"], 6)
+    return(paste(lat, lon, sep = ","))
+  }
+
+  if (is.data.frame(place)) {
+    p_names <- tolower(names(place))
+    id_col_lower <- tolower(id_col)
+    if (id_col_lower %in% p_names) {
+      id_col_idx <- which(p_names == id_col_lower)
+      return(as.character(place[[id_col_idx]]))
+    }
+    lat_col <- which(p_names %in% c("lat", "latitude"))
+    lon_col <- which(p_names %in% c("lon", "lng", "longitude"))
+    if (length(lat_col) == 1 && length(lon_col) == 1) {
+      return(paste(place[[lat_col]], place[[lon_col]], sep = ","))
+    }
+    stop(
+      "Data frame must contain either an '",
+      id_col,
+      "' column or coordinate columns ('lat', 'lon').",
+      call. = FALSE
+    )
+  }
+
+  if (is.matrix(place) && is.numeric(place)) {
+    if (ncol(place) != 2) {
+      stop("Matrix must have 2 columns.", call. = FALSE)
+    }
+    cnames <- tolower(colnames(place))
+    if (all(c("lon", "lat") %in% cnames)) {
+      return(paste(place[, "lat"], place[, "lon"], sep = ","))
+    }
+    # Fallback to assuming [lon, lat] order if no names
+    return(paste(place[, 2], place[, 1], sep = ","))
+  }
+
+  if (is.character(place)) {
+    return(place)
+  }
+
+  stop("Unsupported input type for 'from'/'to'.", call. = FALSE)
+}
+
+#' Internal helper to extract IDs from various inputs
+#' @param place A data.frame, sf object, matrix, or character vector.
+#' @param id_col The name of the ID column to use.
+#' @return A vector of IDs.
+#' @noRd
+.get_ids <- function(place, id_col) {
+  if (is.data.frame(place) && id_col %in% names(place)) {
+    return(place[[id_col]])
+  }
+  if (is.character(place)) {
+    return(place)
+  }
+  # For matrices or sf objects without an ID col, create a sequence
+  return(seq_len(NROW(place)))
 }
