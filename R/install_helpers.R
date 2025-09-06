@@ -137,6 +137,7 @@ get_platform_info <- function() {
   arch <- switch(
     Sys.info()[["machine"]],
     x86_64 = "amd64",
+    `x86-64` = "amd64",
     amd64 = "amd64",
     aarch64 = "arm64",
     arm64 = "arm64"
