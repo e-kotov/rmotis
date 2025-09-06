@@ -177,8 +177,18 @@ motis_install <- function(
   }
 
   # --- 6. Copy files to destination ---
+  # Handle cases where archives (especially zips) extract into a single subfolder
+  extracted_items <- list.files(tmp_extract_dir, full.names = TRUE)
+  source_dir <- if (
+    length(extracted_items) == 1 && dir.exists(extracted_items[1])
+  ) {
+    extracted_items[1]
+  } else {
+    tmp_extract_dir
+  }
+
   files_to_copy <- list.files(
-    tmp_extract_dir,
+    source_dir,
     full.names = TRUE,
     all.files = TRUE,
     no.. = TRUE
