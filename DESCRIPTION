@@ -1,9 +1,12 @@
 Package: rmotis
 Title: Client for Modular Open Transportation Information System
 Version: 0.0.0.9000
-Authors@R: 
-    person("Egor", "Kotov", , "kotov.egor@gmail.com", role = c("aut", "cre", "cph"),
-           comment = c(ORCID = "0000-0001-6690-5345"))
+Authors@R: c(
+    person("Egor", "Kotov", , "kotov.egor@gmail.com", role = c("aut", "cre"),
+           comment = c(ORCID = "0000-0001-6690-5345")),
+    person("Dmitry", "Boyko", , , role = "aut",
+           comment = c(ORCID = "0000-0001-5640-6788"))
+  )
 Description: Client for Modular Open Transportation Information System
     ('MOTIS').
 License: MIT + file LICENSE
