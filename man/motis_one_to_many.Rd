@@ -6,10 +6,13 @@
 \usage{
 motis_one_to_many(
   one,
+  one_id_col = "id",
   many,
   many_id_col = "id",
   mode = c("WALK", "BIKE", "CAR"),
   arrive_by = FALSE,
+  max = 7200,
+  maxMatchingDistance = 1000,
   ...,
   output = c("data.frame", "raw_list")
 )

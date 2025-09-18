@@ -32,10 +32,13 @@
 #' @importFrom rlang check_installed
 motis_one_to_many <- function(
   one,
+  one_id_col = "id",
   many,
   many_id_col = "id",
   mode = c("WALK", "BIKE", "CAR"),
   arrive_by = FALSE,
+  max = 7200, # 2 hours in seconds
+  maxMatchingDistance = 1000, # 1 km
   ...,
   output = c("data.frame", "raw_list")
 ) {
@@ -64,7 +67,9 @@ motis_one_to_many <- function(
       one = one_place,
       many = many_places_str,
       mode = mode,
-      arriveBy = arrive_by
+      arriveBy = arrive_by,
+      max = max,
+      maxMatchingDistance = maxMatchingDistance
     ),
     dots
   )
@@ -85,19 +90,31 @@ motis_one_to_many <- function(
   }
 
   # The response is an ordered list matching the input `many` locations
-  results_df <- purrr::map_dfr(parsed_response, ~ as.data.frame(.x), .id = NULL)
+  results_df <- purrr::map(
+    parsed_response,
+    ~ {
+      # Check if the list element is empty first
+      if (length(.x) == 0) {
+        data.frame(duration = NA_real_)
+      } else {
+        # If not empty, proceed with the conversion
+        as.data.frame(.x)
+      }
+    }
+  ) |>
+    dplyr::bind_rows()
 
-  # Get identifiers from the original `many` input
+  one_id <- .get_ids(one, id_col = one_id_col)
   many_ids <- .get_ids(many, id_col = many_id_col)
 
   # Combine IDs with results
   final_df <- data.frame(
-    many_id = many_ids
+    one_id = one_id,
+    many_id = many_ids,
+    duration = results_df$duration
   )
-  # Rename columns for clarity
-  names(results_df) <- c("duration_seconds", "distance_meters")
 
-  return(cbind(final_df, results_df))
+  return(final_df)
 }
 
 
