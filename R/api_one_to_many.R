@@ -59,18 +59,24 @@ motis_one_to_many <- function(
 
   # Collapse any vector arguments in dots to comma-separated strings
   dots <- lapply(dots, function(x) {
-    if (length(x) > 1 && is.atomic(x)) paste(x, collapse = ",") else x
+    if (length(x) > 1 && is.atomic(x)) {
+      paste(unname(x), collapse = ",")
+    } else if (is.atomic(x)) {
+      unname(x)
+    } else {
+      x
+    }
   })
 
   api_args <- c(
     list(
-      one = one_place,
-      many = many_places_str,
-      mode = mode,
-      arriveBy = arrive_by,
-      max = max,
-      maxMatchingDistance = maxMatchingDistance,
-      .server = user_server %||% .get_server_url()
+      one = unname(one_place),
+      many = unname(many_places_str),
+      mode = unname(mode),
+      arriveBy = unname(arrive_by),
+      max = unname(max),
+      maxMatchingDistance = unname(maxMatchingDistance),
+      .server = unname(user_server %||% .get_server_url())
     ),
     dots
   )

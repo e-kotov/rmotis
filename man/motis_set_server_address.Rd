@@ -4,15 +4,11 @@
 \alias{motis_set_server_address}
 \title{Set Server Address in a MOTIS Configuration File}
 \usage{
-motis_set_server_address(
-  config_path,
-  host = "127.0.0.1",
-  port = 8080L,
-  force = FALSE
-)
+motis_set_server_address(path, host = "127.0.0.1", port = 8080L, force = FALSE)
 }
 \arguments{
-\item{config_path}{A string. The path to the \code{config.yml} file to modify.}
+\item{path}{A string. Path to the \code{config.yml} file, the \verb{data/} directory,
+or the root MOTIS project directory.}
 
 \item{host}{A string. The IP address for the server to bind to.}
 
@@ -26,8 +22,9 @@ the file is always modified.}
 The path to the modified \code{config.yml} file, invisibly.
 }
 \description{
-Safely reads a \code{config.yml} file, adds or updates the \code{server} settings
-for \code{host} and \code{port}, and writes the file back.
+Updates the \code{server} settings for \code{host} and \code{port} in a MOTIS configuration
+file. Automatically targets the server configuration (usually in the \verb{data/}
+subdirectory).
 }
 \details{
 Because this function modifies a file in place, it requires confirmation if

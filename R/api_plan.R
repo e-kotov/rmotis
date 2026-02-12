@@ -60,7 +60,7 @@ motis_plan <- function(
   time <- as.POSIXct(time)
 
   # --- 2. Initialize common variables ---
-  time_str <- format(time, "%Y-%m-%dT%H:%M:%S", tz = "UTC")
+  time_str <- unname(format(time, "%Y-%m-%dT%H:%M:%S", tz = "UTC"))
   if (!grepl("Z$", time_str)) time_str <- paste0(time_str, "Z")
   
   dots <- list(...)
@@ -70,19 +70,25 @@ motis_plan <- function(
 
   # Collapse any vector arguments in dots to comma-separated strings
   dots <- lapply(dots, function(x) {
-    if (length(x) > 1 && is.atomic(x)) paste(x, collapse = ",") else x
+    if (length(x) > 1 && is.atomic(x)) {
+      paste(unname(x), collapse = ",")
+    } else if (is.atomic(x)) {
+      unname(x)
+    } else {
+      x
+    }
   })
 
   # Helper to build a single request
   build_req <- function(f, t) {
     api_args <- c(
       list(
-        fromPlace = f,
-        toPlace = t,
-        time = time_str,
-        arriveBy = arrive_by,
+        fromPlace = unname(f),
+        toPlace = unname(t),
+        time = unname(time_str),
+        arriveBy = unname(arrive_by),
         .build_only = TRUE,
-        .server = user_server %||% .get_server_url()
+        .server = unname(user_server %||% .get_server_url())
       ),
       dots
     )

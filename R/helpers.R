@@ -82,24 +82,29 @@
     return(.itins_template())
   }
   
-  process <- function(itins, kind_label) {
-    if (is.null(itins) || length(itins) == 0) {
-      message("DEBUG: .flatten_itineraries: no ", kind_label, " found")
+  # Ensure we have lists even if keys are missing
+  itins <- res$itineraries
+  if (is.null(itins)) itins <- list()
+  directs <- if (include_direct) res$direct else NULL
+  if (is.null(directs)) directs <- list()
+
+  process <- function(itins_list, kind_label) {
+    if (is.null(itins_list) || length(itins_list) == 0) {
       return(.itins_template())
     }
-    if (!is.list(itins)) {
+    if (!is.list(itins_list)) {
       warning("Itineraries field is not a list for kind: ", kind_label)
       return(.itins_template())
     }
     
-    n <- length(itins)
+    n <- length(itins_list)
     message("DEBUG: .flatten_itineraries: processing ", n, " ", kind_label, "(s)")
     
     duration <- numeric(n); distance <- numeric(n); startTime <- character(n)
     endTime <- character(n); transfers <- integer(n); geom_info <- vector("list", n)
     
     for (i in seq_len(n)) {
-      it <- itins[[i]]
+      it <- itins_list[[i]]
       if (!is.list(it)) {
         duration[i] <- NA_real_; distance[i] <- NA_real_; startTime[i] <- NA_character_
         endTime[i] <- NA_character_; transfers[i] <- NA_integer_; geom_info[[i]] <- NULL
@@ -109,7 +114,7 @@
       duration[i] <- as.numeric(it[["duration"]] %||% NA_real_)
       startTime[i] <- as.character(it[["startTime"]] %||% NA_character_)
       endTime[i] <- as.character(it[["endTime"]] %||% NA_character_)
-      transfers[i] <- as.integer(it[["transfers"]] %||% NA_integer_)
+      transfers[i] <- as.integer(it[["transfers"]] %||% 0L)
       
       dist_sum <- 0
       legs <- it[["legs"]]
@@ -141,11 +146,12 @@
     )
   }
   
-  it_df <- process(res$itineraries, "itinerary")
-  dir_df <- if (include_direct && !is.null(res$direct)) process(res$direct, "direct") else NULL
+  it_df <- process(itins, "itinerary")
+  dir_df <- process(directs, "direct")
   
-  if (is.null(dir_df)) return(it_df)
-  dplyr::bind_rows(it_df, dir_df)
+  combined <- dplyr::bind_rows(it_df, dir_df)
+  message("DEBUG: .flatten_itineraries: returning ", nrow(combined), " total rows")
+  combined
 }
 
 #' @keywords internal
@@ -160,17 +166,17 @@
   itins <- res$itineraries
   if (!is.list(itins)) itins <- list()
   
-  kinds_label <- rep("itinerary", length(itins))
-  if (include_direct && is.list(res$direct) && length(res$direct) > 0) {
-    itins <- c(itins, res$direct)
-    kinds_label <- c(kinds_label, rep("direct", length(res$direct)))
-  }
+  directs <- if (include_direct) res$direct else NULL
+  if (is.null(directs)) directs <- list()
+
+  all_itins <- c(itins, directs)
+  kinds_label <- c(rep("itinerary", length(itins)), rep("direct", length(directs)))
   
-  if (length(itins) == 0) return(.legs_template())
+  if (length(all_itins) == 0) return(.legs_template())
   
   # Pre-calculate total legs to avoid dynamic growth
   total_legs <- 0
-  for (it in itins) {
+  for (it in all_itins) {
     if (is.list(it) && is.list(it[["legs"]])) {
       total_legs <- total_legs + length(it[["legs"]])
     }
@@ -185,8 +191,8 @@
   geom_info <- vector("list", total_legs)
   
   curr <- 1
-  for (i in seq_along(itins)) {
-    it <- itins[[i]]; k <- kinds_label[i]
+  for (i in seq_along(all_itins)) {
+    it <- all_itins[[i]]; k <- kinds_label[i]
     if (!is.list(it) || !is.list(it[["legs"]])) next
     
     legs <- it[["legs"]]
@@ -327,4 +333,137 @@
   }
   
   sf::st_as_sf(df)
+}
+
+.get_ids <- function(place, id_col = "id") {
+  if (inherits(place, "sf")) {
+    if (id_col %in% names(place)) {
+      return(unname(as.character(sf::st_drop_geometry(place)[[id_col]])))
+    } else {
+      return(as.character(seq_len(nrow(place))))
+    }
+  }
+  if (is.data.frame(place)) {
+    if (id_col %in% names(place)) {
+      return(unname(as.character(place[[id_col]])))
+    } else {
+      return(as.character(seq_len(nrow(place))))
+    }
+  }
+  if (is.matrix(place)) {
+    return(as.character(seq_len(nrow(place))))
+  }
+  if (is.character(place)) {
+    return(unname(place))
+  }
+  return("1")
+}
+
+.format_place <- function(place, id_col = "id") {
+  if (inherits(place, "sf")) {
+    coords <- sf::st_coordinates(place)
+    lat <- round(coords[, "Y"], 6)
+    lon <- round(coords[, "X"], 6)
+    return(unname(paste(lat, lon, sep = ",")))
+  }
+  if (is.data.frame(place)) {
+    p_names <- tolower(names(place))
+    lat_col <- which(p_names %in% c("lat", "latitude"))
+    lon_col <- which(p_names %in% c("lon", "lng", "longitude"))
+    if (length(lat_col) == 1 && length(lon_col) == 1) {
+      lat <- round(place[[lat_col]], 6)
+      lon <- round(place[[lon_col]], 6)
+      return(unname(paste(lat, lon, sep = ",")))
+    }
+    id_col_lower <- tolower(id_col)
+    if (id_col_lower %in% p_names) {
+      id_col_idx <- which(p_names == id_col_lower)
+      return(unname(as.character(place[[id_col_idx]])))
+    }
+    stop("Data frame must contain coordinate columns ('lat', 'lon') or an '", id_col, "' column.", call. = FALSE)
+  }
+  if (is.matrix(place) && is.numeric(place)) {
+    if (ncol(place) != 2) stop("Matrix must have 2 columns.", call. = FALSE)
+    cnames <- tolower(colnames(place))
+    if (all(c("lon", "lat") %in% cnames)) {
+      lat <- round(place[, "lat"], 10); lon <- round(place[, "lon"], 10)
+      return(unname(paste(lat, lon, sep = ",")))
+    }
+    return(unname(paste(place[, 2], place[, 1], sep = ",")))
+  }
+  if (is.character(place)) return(unname(place))
+  stop("Unsupported input type.", call. = FALSE)
+}
+
+# Recursive list update helper
+.deep_update <- function(base, updates) {
+  if (!is.list(updates)) return(updates)
+  for (name in names(updates)) {
+    if (is.list(updates[[name]]) && is.list(base[[name]])) {
+      base[[name]] <- .deep_update(base[[name]], updates[[name]])
+    } else {
+      base[[name]] <- updates[[name]]
+    }
+  }
+  base
+}
+
+#' Resolve path to config.yml with smart detection
+#' @param path Character. Path to file or directory.
+#' @param type Character. Either "import" (root) or "server" (data).
+#' @return Character path to config.yml or stops with error.
+#' @noRd
+.resolve_config_path <- function(path, type = c("import", "server")) {
+  type <- match.arg(type)
+  path <- normalizePath(path, mustWork = TRUE)
+  
+  # 1. Path is already config.yml
+  if (!dir.exists(path) && basename(path) == "config.yml") {
+    return(path)
+  }
+  
+  if (!dir.exists(path)) {
+    stop("Path must be a directory or a 'config.yml' file.", call. = FALSE)
+  }
+  
+  # 2. Check for "server" (data) directory
+  is_data_dir <- function(d) {
+    has_osr <- dir.exists(file.path(d, "osr"))
+    has_meta <- any(file.exists(file.path(d, "meta", c("tt.json", "tiles.json", "adr.json"))))
+    has_config <- file.exists(file.path(d, "config.yml"))
+    has_osr && (has_meta || has_config) # At minimum osr + config or osr + meta
+  }
+  
+  # 3. Check for "import" (root) directory
+  is_root_dir <- function(d) {
+    pbfs <- list.files(d, pattern = "\\.osm\\.pbf$", full.names = TRUE)
+    has_config <- file.exists(file.path(d, "config.yml"))
+    length(pbfs) == 1 && has_config
+  }
+  
+  if (type == "server") {
+    # Is the current path a data dir?
+    if (is_data_dir(path)) return(file.path(path, "config.yml"))
+    
+    # Is there a data/ subfolder that is a data dir?
+    data_sub <- file.path(path, "data")
+    if (dir.exists(data_sub) && is_data_dir(data_sub)) {
+      return(file.path(data_sub, "config.yml"))
+    }
+    
+    stop("Could not identify a MOTIS data directory at: ", path, 
+         "\nA data directory should contain an 'osr/' folder and 'config.yml'.", call. = FALSE)
+  } else {
+    # type == "import"
+    if (is_root_dir(path)) return(file.path(path, "config.yml"))
+    
+    # If we are inside 'data', the root is one level up
+    parent <- dirname(path)
+    if (basename(path) == "data" && is_root_dir(parent)) {
+      return(file.path(parent, "config.yml"))
+    }
+    
+    stop("Could not identify a MOTIS root (import) directory at: ", path,
+         "\nA root directory should contain exactly one .osm.pbf file and 'config.yml'.", call. = FALSE)
+  }
 }

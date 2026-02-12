@@ -13,6 +13,7 @@ motis_config(
   host = "127.0.0.1",
   port = 8080L,
   force = FALSE,
+  unlock_limits = TRUE,
   echo_cmd = FALSE,
   echo = TRUE,
   spinner = TRUE
@@ -44,6 +45,9 @@ system \code{PATH}.}
 
 \item{force}{A logical. If \code{TRUE}, an existing \code{config.yml} file in the
 \code{work_dir} will be overwritten. Defaults to \code{FALSE}.}
+
+\item{unlock_limits}{A logical. If \code{TRUE} (default), sets very high server
+limits to prevent query capping.}
 
 \item{echo_cmd}{A logical. If \code{TRUE}, prints the full command. Defaults to \code{FALSE}.}
 

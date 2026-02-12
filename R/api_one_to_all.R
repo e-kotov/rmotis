@@ -46,7 +46,7 @@ motis_one_to_all <- function(
 
   # --- 2. Format Inputs ---
   one_place <- .format_place(one)
-  time_str <- format(time, "%Y-%m-%dT%H:%M:%S", tz = "UTC")
+  time_str <- unname(format(time, "%Y-%m-%dT%H:%M:%S", tz = "UTC"))
   if (!grepl("Z$", time_str)) time_str <- paste0(time_str, "Z")
 
   # --- 3. Build Request ---
@@ -56,16 +56,22 @@ motis_one_to_all <- function(
 
   # Collapse any vector arguments in dots to comma-separated strings
   dots <- lapply(dots, function(x) {
-    if (length(x) > 1 && is.atomic(x)) paste(x, collapse = ",") else x
+    if (length(x) > 1 && is.atomic(x)) {
+      paste(unname(x), collapse = ",")
+    } else if (is.atomic(x)) {
+      unname(x)
+    } else {
+      x
+    }
   })
 
   api_args <- c(
     list(
-      one = one_place,
-      time = time_str,
-      maxTravelTime = max_travel_time,
-      arriveBy = arrive_by,
-      .server = user_server %||% .get_server_url()
+      one = unname(one_place),
+      time = unname(time_str),
+      maxTravelTime = unname(max_travel_time),
+      arriveBy = unname(arrive_by),
+      .server = unname(user_server %||% .get_server_url())
     ),
     dots
   )
