@@ -5,14 +5,14 @@
 #' Arrays are encoded as comma-separated values (per OpenAPI explode: false).
 #'
 #' @section Required:
-#' - fromPlace, toPlace: Either "lat,lon[,level]" or a stop id. Level is optional (defaults to 0).
+#' - fromPlace, toPlace: Either "lat,lon`[,level]`" or a stop id. Level is optional (defaults to 0).
 #'
 #' @section Response:
 #' A named list with (at least) the following elements (see schema details in the spec):
 #' requestParameters, debugOutput, from, to, direct, itineraries, previousPageCursor, nextPageCursor.
 #'
-#' @param fromPlace Character. Origin place ("lat,lon[,level]" or stop id). Required.
-#' @param toPlace Character. Destination place ("lat,lon[,level]" or stop id). Required.
+#' @param fromPlace Character. Origin place ("lat,lon`[,level]`" or stop id). Required.
+#' @param toPlace Character. Destination place ("lat,lon`[,level]`" or stop id). Required.
 #' @param via Character vector (max length 2). Stop IDs to visit in order (coords not allowed). See also viaMinimumStay.
 #' @param viaMinimumStay Integer vector (max length 2). Minimum stay (minutes) for each via. If omitted, server uses 0,0 (staying in the same trip allowed).
 #' @param time POSIXct or RFC3339 string. Departure time (arriveBy=FALSE) or arrival time (arriveBy=TRUE). Defaults to server ‚Äúnow‚Äù if unset.
@@ -83,7 +83,6 @@
 #' return = "legs"
 #' )
 #' }
-#' @seealso [rm_trip()], [rm_stoptimes()] (endpoints /api/v4/trip, /api/v4/stoptimes)
 #' @export
 motis_plan_manual <- function(
   fromPlace,
@@ -246,31 +245,11 @@ motis_plan_manual <- function(
       int64_policy = "double"
     ))
   } else if (return == "itineraries") {
-    itineraries <- .flatten_itineraries(resp, include_direct = TRUE)
-    legs <- .flatten_legs(resp, decode_geom = TRUE, include_direct = TRUE)
-
-    if (nrow(itineraries) == 0) {
-      return(itineraries)
-    }
-
-    if (nrow(legs) > 0 && "geom" %in% names(legs)) {
-      itinerary_geoms <- legs |>
-        dplyr::group_by(.data$kind, .data$itin_id) |>
-        dplyr::summarise(geom = sf::st_combine(.data$geom), .groups = "drop")
-
-      itineraries <- itineraries |>
-        dplyr::left_join(itinerary_geoms, by = c("kind", "itin_id")) |>
-        sf::st_as_sf()
-    } else {
-      itineraries$geom <- sf::st_sfc(
-        lapply(1:nrow(itineraries), function(i) sf::st_multilinestring()),
-        crs = 4326
-      )
-      itineraries <- sf::st_as_sf(itineraries)
-    }
-    return(itineraries)
+    itineraries <- .flatten_itineraries(resp, include_direct = TRUE, decode_geom = TRUE)
+    return(.st_as_sf_plan(itineraries))
   } else if (return == "legs") {
-    return(.flatten_legs(resp, decode_geom = TRUE, include_direct = TRUE))
+    legs <- .flatten_legs(resp, decode_geom = TRUE, include_direct = TRUE)
+    return(.st_as_sf_plan(legs))
   } else {
     stop(paste("Unsupported return type:", return), call. = FALSE)
   }

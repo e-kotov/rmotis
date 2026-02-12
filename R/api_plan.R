@@ -124,19 +124,23 @@ motis_plan <- function(
       httr2::req_perform_sequential(requests)
     }
 
-    # Process and parse responses
-    parsed_responses <- purrr::map(responses, httr2::resp_body_json)
-
+    # Process and parse responses incrementally
     if (output == "raw_list") {
-      return(parsed_responses)
+      return(purrr::map(responses, .as_plan_list))
     }
 
-    min_durations <- purrr::map_dbl(parsed_responses, function(resp) {
-      if (length(resp$itineraries) == 0) {
+    min_durations <- purrr::map_dbl(responses, function(resp) {
+      parsed <- .as_plan_list(resp)
+      itins <- parsed$itineraries
+      if (length(itins) == 0) {
         return(NA_real_)
       }
-      durations <- purrr::map_dbl(resp$itineraries, "duration")
-      min(durations, na.rm = TRUE) / 60
+      
+      durs <- numeric(length(itins))
+      for (i in seq_along(itins)) {
+        durs[i] <- itins[[i]]$duration %||% NA_real_
+      }
+      min(durs, na.rm = TRUE) / 60
     })
 
     long_matrix <- data.frame(
@@ -195,60 +199,36 @@ motis_plan <- function(
       httr2::req_perform_sequential(requests)
     }
 
-    # Process and parse responses
-    parsed_responses <- purrr::map(responses, httr2::resp_body_json)
-
+    # Process and parse responses incrementally to save memory
     if (output == "raw_list") {
-      return(parsed_responses)
+      return(purrr::map(responses, .as_plan_list))
     }
 
-    names(parsed_responses) <- seq_along(parsed_responses)
+    names(responses) <- seq_along(responses)
 
-        if (output == "itineraries") {
-
-          itineraries <- purrr::list_rbind(
-
-            purrr::map(
-
-              parsed_responses,
-
-              .flatten_itineraries,
-
-              include_direct = TRUE,
-
-              decode_geom = TRUE
-
-            ),
-
-            names_to = "request_id"
-
-          )
-
-          return(.st_as_sf_plan(itineraries))
-
-        } else if (output == "legs") {
-
-          legs <- purrr::list_rbind(
-
-            purrr::map(
-
-              parsed_responses,
-
-              .flatten_legs,
-
-              decode_geom = TRUE,
-
-              include_direct = TRUE
-
-            ),
-
-            names_to = "request_id"
-
-          )
-
-          return(.st_as_sf_plan(legs))
-
-        }
+    if (output == "itineraries") {
+      itineraries <- purrr::list_rbind(
+        purrr::map(
+          responses,
+          .flatten_itineraries,
+          include_direct = TRUE,
+          decode_geom = TRUE
+        ),
+        names_to = "request_id"
+      )
+      return(.st_as_sf_plan(itineraries))
+    } else if (output == "legs") {
+      legs <- purrr::list_rbind(
+        purrr::map(
+          responses,
+          .flatten_legs,
+          decode_geom = TRUE,
+          include_direct = TRUE
+        ),
+        names_to = "request_id"
+      )
+      return(.st_as_sf_plan(legs))
+    }
   }
 }
 

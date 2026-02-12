@@ -63,9 +63,9 @@ motis_plan_manual(
 )
 }
 \arguments{
-\item{fromPlace}{Character. Origin place ("lat,lon\link{,level}" or stop id). Required.}
+\item{fromPlace}{Character. Origin place ("lat,lon\verb{[,level]}" or stop id). Required.}
 
-\item{toPlace}{Character. Destination place ("lat,lon\link{,level}" or stop id). Required.}
+\item{toPlace}{Character. Destination place ("lat,lon\verb{[,level]}" or stop id). Required.}
 
 \item{via}{Character vector (max length 2). Stop IDs to visit in order (coords not allowed). See also viaMinimumStay.}
 
@@ -162,7 +162,7 @@ Arrays are encoded as comma-separated values (per OpenAPI explode: false).
 \section{Required}{
 
 \itemize{
-\item fromPlace, toPlace: Either "lat,lon\link{,level}" or a stop id. Level is optional (defaults to 0).
+\item fromPlace, toPlace: Either "lat,lon\verb{[,level]}" or a stop id. Level is optional (defaults to 0).
 }
 }
 
@@ -198,7 +198,4 @@ toPlace = "53.5526,9.9943",
 return = "legs"
 )
 }
-}
-\seealso{
-\code{\link[=rm_trip]{rm_trip()}}, \code{\link[=rm_stoptimes]{rm_stoptimes()}} (endpoints /api/v4/trip, /api/v4/stoptimes)
 }

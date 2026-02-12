@@ -76,7 +76,7 @@ motis_one_to_many <- function(
   req <- do.call(motis.client::mc_oneToMany, api_args)
 
   # dry run to catch errors early
-  httr2::req_dry_run(req)
+  # httr2::req_dry_run(req)
 
   # --- 4. Perform Request ---
   # This API endpoint is synchronous and doesn't require parallel execution
