@@ -3,6 +3,13 @@
 # minimal internal %||% (no extra deps)
 `%||%` <- function(x, y) if (!is.null(x)) x else y
 
+# Internal debug helper
+debug_msg <- function(...) {
+  if (isTRUE(getOption("rmotis.debug", FALSE))) {
+    message("DEBUG: ", ...)
+  }
+}
+
 # Internal helper to get the server URL from options
 .get_server_url <- function() {
   getOption("rmotis.url")
@@ -78,7 +85,7 @@
   })
   
   if (is.null(res)) {
-    message("DEBUG: .flatten_itineraries: parsed response is NULL")
+    debug_msg(".flatten_itineraries: parsed response is NULL")
     return(.itins_template())
   }
   
@@ -98,7 +105,7 @@
     }
     
     n <- length(itins_list)
-    message("DEBUG: .flatten_itineraries: processing ", n, " ", kind_label, "(s)")
+    debug_msg(".flatten_itineraries: processing ", n, " ", kind_label, "(s)")
     
     duration <- numeric(n); distance <- numeric(n); startTime <- character(n)
     endTime <- character(n); transfers <- integer(n); geom_info <- vector("list", n)
@@ -150,7 +157,7 @@
   dir_df <- process(directs, "direct")
   
   combined <- dplyr::bind_rows(it_df, dir_df)
-  message("DEBUG: .flatten_itineraries: returning ", nrow(combined), " total rows")
+  debug_msg(".flatten_itineraries: returning ", nrow(combined), " total rows")
   combined
 }
 

@@ -9,7 +9,8 @@ motis_gui(
   port = NULL,
   style = "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
   center = c(13.4, 52.52),
-  zoom = 10
+  zoom = 10,
+  debug = FALSE
 )
 }
 \arguments{
@@ -28,6 +29,8 @@ auto-detect from the server object or registry.}
 \item{center}{Numeric vector \code{c(lng, lat)}. Initial map center.}
 
 \item{zoom}{Numeric. Initial zoom level.}
+
+\item{debug}{Logical. If \code{TRUE}, prints detailed debug messages to the console. Defaults to \code{FALSE}.}
 }
 \value{
 No return value; launches a Shiny Gadget.

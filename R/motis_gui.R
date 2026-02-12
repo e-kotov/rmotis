@@ -14,6 +14,7 @@
 #' @param style Character. Map style for `mapgl`. Defaults to Carto Voyager.
 #' @param center Numeric vector `c(lng, lat)`. Initial map center.
 #' @param zoom Numeric. Initial zoom level.
+#' @param debug Logical. If `TRUE`, prints detailed debug messages to the console. Defaults to `FALSE`.
 #' @return No return value; launches a Shiny Gadget.
 #' @export
 motis_gui <- function(
@@ -21,7 +22,8 @@ motis_gui <- function(
   port = NULL,
   style = "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
   center = c(13.40, 52.52), # Default to Berlin
-  zoom = 10
+  zoom = 10,
+  debug = FALSE
 ) {
   # 1. Check Dependencies
   .gui_check_dependencies()
@@ -31,7 +33,8 @@ motis_gui <- function(
   on.exit(srv_context$cleanup_fn(), add = TRUE)
   
   old_opts <- options(
-    rmotis.url = paste0("http://127.0.0.1:", srv_context$active_port)
+    rmotis.url = paste0("http://127.0.0.1:", srv_context$active_port),
+    rmotis.debug = debug
   )
   on.exit(options(old_opts), add = TRUE)
 
@@ -220,8 +223,7 @@ motis_gui <- function(
             }
             
             if (autozoom_enabled()) {
-              bbox <- sf::st_bbox(res)
-              mapgl::fit_bounds(proxy, bbox, animate = TRUE, padding = 100)
+              mapgl::fit_bounds(proxy, res, animate = TRUE, padding = 100)
             }
           } else {
             shiny::showNotification("No routes found.", type = "warning")

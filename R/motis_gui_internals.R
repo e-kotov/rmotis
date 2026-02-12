@@ -42,11 +42,11 @@
         stop("When providing a raw process object, you must specify the 'port'.", call. = FALSE)
       }
     }
-    message("Using provided MOTIS server process on port ", active_port)
+    debug_msg("Using provided MOTIS server process on port ", active_port)
     
   # 2. Path passed (Start temporary server)
   } else if (is.character(input_motis) && length(input_motis) == 1) {
-    message("Starting temporary MOTIS server for directory: ", input_motis)
+    debug_msg("Starting temporary MOTIS server for directory: ", input_motis)
     
     # Auto-select port if null
     target_port <- if (is.null(active_port)) 8080L else as.integer(active_port)
@@ -84,14 +84,14 @@
         # Pick most recent
         most_recent <- alive_servers[nrow(alive_servers), ]
         active_port <- most_recent$port
-        message("Connected to auto-detected MOTIS server on port ", active_port)
+        debug_msg("Connected to auto-detected MOTIS server on port ", active_port)
       }
     }
   }
 
   cleanup_fn <- function() {
     if (kill_on_exit && !is.null(server_process) && server_process$is_alive()) {
-      message("Stopping temporary MOTIS server...")
+      debug_msg("Stopping temporary MOTIS server...")
       server_process$kill()
     }
   }
