@@ -19,6 +19,7 @@ Imports:
     httr2,
     motis.client,
     purrr,
+    ps,
     RcppSimdJson
 Suggests: 
     sf,
