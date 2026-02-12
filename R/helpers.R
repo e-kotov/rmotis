@@ -75,9 +75,11 @@
     kind = character(),
     itin_id = integer(),
     duration = numeric(),
+    distance = numeric(),
     startTime = character(),
     endTime = character(),
-    transfers = integer()
+    transfers = integer(),
+    geom = list()
   )
 }
 
@@ -95,28 +97,51 @@
     to_lon = numeric(),
     startTime = character(),
     endTime = character(),
-    distance = numeric()
+    duration = numeric(),
+    distance = numeric(),
+    geom = list()
   )
 }
 
 #' @keywords internal
-.flatten_itineraries <- function(x, include_direct = FALSE) {
+.flatten_itineraries <- function(x, include_direct = FALSE, decode_geom = FALSE) {
   res <- .as_plan_list(x)
 
   build <- function(itins, kind_label) {
     if (is.null(itins) || length(itins) == 0) {
       return(.itins_template())
     }
-    purrr::imap_dfr(itins, function(it, i) {
+    
+    itins_df <- purrr::imap_dfr(itins, function(it, i) {
       dplyr::tibble(
         kind = kind_label,
         itin_id = i,
         duration = it$duration %||% NA_real_,
+        distance = sum(purrr::map_dbl(it$legs, ~ .x$distance %||% 0), na.rm = TRUE),
         startTime = it$startTime %||% NA_character_,
         endTime = it$endTime %||% NA_character_,
         transfers = it$transfers %||% NA_integer_
       )
     })
+
+    itins_df$geom <- vector("list", nrow(itins_df))
+
+    if (isTRUE(decode_geom) && requireNamespace("googlePolylines", quietly = TRUE)) {
+      itins_df$geom <- purrr::map(itins, function(it) {
+        leg_polys <- purrr::map(it$legs, .leg_polyline) |> purrr::compact()
+        if (length(leg_polys) == 0) return(NULL)
+        
+        decoded <- purrr::map(leg_polys, function(lp) {
+          d <- googlePolylines::decode(lp$points, precision = lp$precision)[[1]]
+          if (!all(c("lon", "lat") %in% names(d))) {
+             if (ncol(d) >= 2) names(d)[1:2] <- c("lat", "lon")
+          }
+          d
+        })
+        dplyr::bind_rows(decoded)
+      })
+    }
+    itins_df
   }
 
   main <- build(res$itineraries, "itinerary")
@@ -125,6 +150,7 @@
   } else {
     .itins_template()
   }
+  
   dplyr::bind_rows(main, direct)
 }
 
@@ -152,70 +178,56 @@
     # 2. Pre-calculate IDs vectorially (fast setup)
     leg_counts <- purrr::map_int(itins, ~ length(.x$legs %||% list()))
 
-    # 3. Pre-allocate all vectors (the key to speed)
-    kind <- rep(kind_label, n)
-    itin_id <- rep(seq_along(leg_counts), times = leg_counts)
-    leg_index <- sequence(leg_counts)
-    mode <- character(n)
-    from_name <- character(n)
-    from_lat <- numeric(n)
-    from_lon <- numeric(n)
-    to_name <- character(n)
-    to_lat <- numeric(n)
-    to_lon <- numeric(n)
-    startTime <- character(n)
-    endTime <- character(n)
-    distance <- numeric(n)
-
-    polyline_points <- if (isTRUE(decode_geom)) character(n) else NULL
-    polyline_precision <- if (isTRUE(decode_geom)) integer(n) else NULL
+    # 3. Create the tibble
+    out <- dplyr::tibble(
+      kind = rep(kind_label, n),
+      itin_id = rep(seq_along(leg_counts), times = leg_counts),
+      leg_index = sequence(leg_counts),
+      mode = character(n),
+      from_name = character(n),
+      from_lat = numeric(n),
+      from_lon = numeric(n),
+      to_name = character(n),
+      to_lat = numeric(n),
+      to_lon = numeric(n),
+      startTime = character(n),
+      endTime = character(n),
+      duration = numeric(n),
+      distance = numeric(n),
+      geom = vector("list", n)
+    )
 
     # 4. Single, fast loop to fill the vectors
     for (i in seq_len(n)) {
       l <- all_legs[[i]]
-      mode[i] <- l$mode %||% NA_character_
-      from_name[i] <- l$from$name %||% NA_character_
-      from_lat[i] <- l$from$lat %||% NA_real_
-      from_lon[i] <- l$from$lon %||% NA_real_
-      to_name[i] <- l$to$name %||% NA_character_
-      to_lat[i] <- l$to$lat %||% NA_real_
-      to_lon[i] <- l$to$lon %||% NA_real_
-      startTime[i] <- l$startTime %||%
+      out$mode[i] <- l$mode %||% NA_character_
+      out$from_name[i] <- l$from$name %||% NA_character_
+      out$from_lat[i] <- l$from$lat %||% NA_real_
+      out$from_lon[i] <- l$from$lon %||% NA_real_
+      out$to_name[i] <- l$to$name %||% NA_character_
+      out$to_lat[i] <- l$to$lat %||% NA_real_
+      out$to_lon[i] <- l$to$lon %||% NA_real_
+      out$startTime[i] <- l$startTime %||%
         l$from$departure %||%
         l$from$scheduledDeparture %||%
         NA_character_
-      endTime[i] <- l$endTime %||%
+      out$endTime[i] <- l$endTime %||%
         l$to$arrival %||%
         l$to$scheduledArrival %||%
         NA_character_
-      distance[i] <- l$distance %||% NA_real_
-      if (isTRUE(decode_geom)) {
-        polyline_points[i] <- l$legGeometry$points %||%
-          l$polyline %||%
-          NA_character_
-        polyline_precision[i] <- l$legGeometry$precision %||% 5L
+      out$duration[i] <- l$duration %||% NA_real_
+      out$distance[i] <- l$distance %||% NA_real_
+      
+      if (isTRUE(decode_geom) && requireNamespace("googlePolylines", quietly = TRUE)) {
+        lp <- .leg_polyline(l)
+        if (!is.null(lp)) {
+          d <- googlePolylines::decode(lp$points, precision = lp$precision)[[1]]
+          if (!all(c("lon", "lat") %in% names(d))) {
+             if (ncol(d) >= 2) names(d)[1:2] <- c("lat", "lon")
+          }
+          out$geom[[i]] <- d
+        }
       }
-    }
-
-    # 5. Create the tibble once at the end
-    out <- dplyr::tibble(
-      kind,
-      itin_id,
-      leg_index,
-      mode,
-      from_name,
-      from_lat,
-      from_lon,
-      to_name,
-      to_lat,
-      to_lon,
-      startTime,
-      endTime,
-      distance
-    )
-    if (isTRUE(decode_geom)) {
-      out$polyline_points <- polyline_points
-      out$polyline_precision <- polyline_precision
     }
     out
   }
@@ -228,94 +240,67 @@
   }
 
   out <- dplyr::bind_rows(main_legs, direct_legs)
+  if (is.null(out) || nrow(out) == 0) return(.legs_template())
+  out
+}
 
-  if (nrow(out) == 0) {
-    return(.legs_template())
+#' Internal helper to convert plan tibble to sf
+#' @param df A tibble from .flatten_itineraries or .flatten_legs
+#' @return An sf object if possible, otherwise the original tibble
+#' @noRd
+.st_as_sf_plan <- function(df) {
+  if (!requireNamespace("sf", quietly = TRUE) || !"geom" %in% names(df)) {
+    return(df)
   }
-
-  if (isTRUE(decode_geom)) {
-    polylines <- out$polyline_points
-    precisions <- out$polyline_precision
-    out <- dplyr::select(out, -polyline_points, -polyline_precision)
-
-    valid_poly <- !is.na(polylines) & nzchar(polylines)
-
-    if (
-      any(valid_poly) && requireNamespace("googlePolylines", quietly = TRUE)
-    ) {
-      prec_vals <- precisions[valid_poly]
-      prec_vals[is.na(prec_vals)] <- 5L
-      u_prec <- unique(prec_vals)
-      use_prec <- if (length(u_prec) > 1L) 5L else u_prec[1L]
-      if (length(u_prec) > 1L) {
-        warning("Mixed precisions found; decoding with 5.")
-      }
-
-      decoded_coords <- googlePolylines::decode(
-        polylines[valid_poly],
-        precision = use_prec
+  
+  if (inherits(df$geom, "sfc")) {
+    return(sf::st_as_sf(df))
+  }
+  
+  if (is.list(df$geom)) {
+    # Check if we have valid geometries (data frames with at least 2 points)
+    valid_idx <- which(vapply(df$geom, function(x) !is.null(x) && is.data.frame(x) && nrow(x) >= 2, logical(1)))
+    
+    if (length(valid_idx) == 0) {
+      df$geom <- sf::st_sfc(replicate(nrow(df), sf::st_linestring(), simplify = FALSE), crs = 4326)
+      return(sf::st_as_sf(df))
+    }
+    
+    if (requireNamespace("sfheaders", quietly = TRUE)) {
+      geom_dfs <- df$geom[valid_idx]
+      names(geom_dfs) <- valid_idx
+      long_geoms <- dplyr::bind_rows(geom_dfs, .id = "id")
+      long_geoms$id <- as.character(long_geoms$id)
+      
+      sfc <- sfheaders::sfc_linestring(
+        long_geoms,
+        x = "lon",
+        y = "lat",
+        linestring_id = "id"
       )
-
-      is_valid_geom <- vapply(
-        decoded_coords,
-        function(d) !is.null(d) && is.data.frame(d) && nrow(d) >= 2,
-        logical(1)
-      )
-
-      if (
-        any(is_valid_geom) &&
-          requireNamespace("sfheaders", quietly = TRUE) &&
-          requireNamespace("sf", quietly = TRUE)
-      ) {
-        valid_coords <- decoded_coords[is_valid_geom]
-        ids <- rep(
-          seq_along(valid_coords),
-          times = vapply(valid_coords, nrow, integer(1))
-        )
-
-        coords_df <- dplyr::bind_rows(valid_coords)
-        if (!all(c("lon", "lat") %in% names(coords_df))) {
-          names(coords_df)[1:2] <- c("lon", "lat")
-        }
-        coords_df$id <- ids
-
-        sfc <- sfheaders::sfc_linestring(
-          coords_df,
-          x = "lon",
-          y = "lat",
-          linestring_id = "id"
-        )
-        sfc <- sf::st_set_crs(sfc, 4326)
-
-        geom_col <- sf::st_sfc(
-          replicate(nrow(out), sf::st_linestring(), simplify = FALSE),
-          crs = 4326
-        )
-
-        original_valid_indices <- which(valid_poly)[is_valid_geom]
-        geom_col[original_valid_indices] <- sfc
-
-        out$geom <- geom_col
-        out <- sf::st_as_sf(out)
-      } else {
-        geom_list <- vector("list", nrow(out))
-        geom_list[which(valid_poly)[is_valid_geom]] <- decoded_coords[
-          is_valid_geom
-        ]
-        out$geom <- geom_list
-      }
+      sfc <- sf::st_set_crs(sfc, 4326)
+      
+      full_sfc <- sf::st_sfc(replicate(nrow(df), sf::st_linestring(), simplify = FALSE), crs = 4326)
+      full_sfc[valid_idx] <- sfc
+      df$geom <- full_sfc
+      return(sf::st_as_sf(df))
     } else {
-      if (requireNamespace("sf", quietly = TRUE)) {
-        out$geom <- sf::st_sfc(
-          replicate(nrow(out), sf::st_linestring(), simplify = FALSE),
-          crs = 4326
-        )
-        out <- sf::st_as_sf(out)
-      } else {
-        out$geom <- vector("list", nrow(out))
-      }
+      df$geom <- purrr::map(df$geom, function(x) {
+        if (is.null(x) || !is.data.frame(x) || nrow(x) < 2) {
+          sf::st_linestring()
+        } else {
+          # Assume lat/lon are first two columns if names mismatch
+          mat <- if (all(c("lon", "lat") %in% names(x))) {
+            as.matrix(x[, c("lon", "lat")])
+          } else {
+            as.matrix(x[, 2:1, drop = FALSE]) # googlePolylines returns lat, lon
+          }
+          sf::st_linestring(mat)
+        }
+      }) |> sf::st_sfc(crs = 4326)
+      return(sf::st_as_sf(df))
     }
   }
-
-  return(out)
+  
+  return(df)
 }

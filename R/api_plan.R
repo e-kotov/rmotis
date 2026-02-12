@@ -204,37 +204,51 @@ motis_plan <- function(
 
     names(parsed_responses) <- seq_along(parsed_responses)
 
-    if (output == "itineraries") {
-      itineraries <- purrr::list_rbind(
-        purrr::map(
-          parsed_responses,
-          .flatten_itineraries,
-          include_direct = TRUE,
-          decode_geom = TRUE
-        ),
-        names_to = "request_id"
-      )
-      if (
-        requireNamespace("sf", quietly = TRUE) && "geom" %in% names(itineraries)
-      ) {
-        itineraries <- sf::st_as_sf(itineraries)
-      }
-      return(itineraries)
-    } else if (output == "legs") {
-      legs <- purrr::list_rbind(
-        purrr::map(
-          parsed_responses,
-          .flatten_legs,
-          decode_geom = TRUE,
-          include_direct = TRUE
-        ),
-        names_to = "request_id"
-      )
-      if (requireNamespace("sf", quietly = TRUE) && "geom" %in% names(legs)) {
-        legs <- sf::st_as_sf(legs)
-      }
-      return(legs)
-    }
+        if (output == "itineraries") {
+
+          itineraries <- purrr::list_rbind(
+
+            purrr::map(
+
+              parsed_responses,
+
+              .flatten_itineraries,
+
+              include_direct = TRUE,
+
+              decode_geom = TRUE
+
+            ),
+
+            names_to = "request_id"
+
+          )
+
+          return(.st_as_sf_plan(itineraries))
+
+        } else if (output == "legs") {
+
+          legs <- purrr::list_rbind(
+
+            purrr::map(
+
+              parsed_responses,
+
+              .flatten_legs,
+
+              decode_geom = TRUE,
+
+              include_direct = TRUE
+
+            ),
+
+            names_to = "request_id"
+
+          )
+
+          return(.st_as_sf_plan(legs))
+
+        }
   }
 }
 
