@@ -112,6 +112,7 @@
       #shiny-notification-panel { top: 70px; right: 10px; left: auto; bottom: auto; }
       
       .sidebar-layout { flex: 1; display: flex; overflow: hidden; min-height: 0; }
+      .sidebar-panel { height: 100%; overflow-y: auto; padding: 15px; }
       .sidebar-panel h4:first-child { margin-top: 0; }
       .sidebar-panel h4 { margin-top: 20px; }
       
@@ -391,6 +392,12 @@
         ),
 
         shiny::hr(),
+        shiny::h4("Street Routing"),
+        shiny::numericInput("max_direct_time", "Max Direct Time (min)", value = 30, min = 1),
+        shiny::numericInput("max_matching_dist", "Max Matching Dist (m)", value = 250, min = 10),
+        shiny::sliderInput("fastest_direct_factor", "Fastest Direct Factor", min = 1, max = 5, value = 1.5, step = 0.1),
+        
+        shiny::hr(),
         shiny::h4("Time & Mode"),
         shiny::splitLayout(
           shiny::dateInput("date", "Date", value = Sys.Date()),
@@ -407,7 +414,10 @@
                                   inline = TRUE),
         
         shiny::hr(),
-        shiny::h4("Options"),
+        shiny::h4("Advanced Options"),
+        shiny::checkboxInput("with_fares", "Include Fares", value = TRUE),
+        shiny::checkboxInput("join_interlined", "Join Interlined Legs", value = FALSE),
+        shiny::numericInput("max_transfers", "Max Transfers", value = 5, min = 0),
         shiny::checkboxInput("timetable_view", "Timetable View (Range)", value = TRUE),
         shiny::numericInput("num_itineraries", "Max Itineraries", value = 3, min = 1, max = 10)
       ),

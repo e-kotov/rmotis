@@ -162,13 +162,20 @@ motis_gui <- function(
     shiny::observeEvent(
       list(locations$start, locations$end, input$date, input$time, 
            input$direct_mode, input$transit_modes, input$timetable_view, 
-           input$num_itineraries, input$arrive_by), {
+           input$num_itineraries, input$arrive_by,
+           input$max_direct_time, input$max_matching_dist, input$fastest_direct_factor,
+           input$with_fares, input$join_interlined, input$max_transfers), {
       
       shiny::req(locations$start, locations$end)
       
       shiny::withProgress(message = "Routing...", {
         tryCatch({
           t0 <- Sys.time()
+          
+          # Handle transit modes: if NULL (nothing selected), pass "" to disable transit
+          t_modes <- input$transit_modes
+          if (is.null(t_modes)) t_modes <- ""
+          
           res <- motis_plan(
             from = sprintf("%.6f,%.6f", locations$start$lat, locations$start$lng),
             to = sprintf("%.6f,%.6f", locations$end$lat, locations$end$lng),
@@ -176,12 +183,22 @@ motis_gui <- function(
             arrive_by = input$arrive_by,
             timetableView = input$timetable_view,
             numItineraries = input$num_itineraries,
-            transitModes = input$transit_modes,
+            transitModes = t_modes,
             directModes = input$direct_mode,
+            maxDirectTime = input$max_direct_time * 60, # Convert min to sec
+            maxMatchingDistance = input$max_matching_dist,
+            fastestDirectFactor = input$fastest_direct_factor,
+            withFares = input$with_fares,
+            joinInterlinedLegs = input$join_interlined,
+            maxTransfers = input$max_transfers,
             output = "itineraries"
           )
           motis_exec_time(as.numeric(difftime(Sys.time(), t0, units = "secs")))
           
+          if (!is.null(res) && nrow(res) > 0) {
+            # Sort by duration so the fastest (e.g. CAR direct) appears first
+            res <- res[order(res$duration), ]
+          }
           itineraries_res(res)
           
           proxy <- mapgl::maplibre_proxy("map")
@@ -267,9 +284,9 @@ motis_gui <- function(
       shiny::req(res)
       
       df <- as.data.frame(res)
-      df <- df[, c("startTime", "endTime", "duration", "transfers")]
+      df <- df[, c("kind", "startTime", "endTime", "duration", "transfers")]
       df$duration <- round(df$duration / 60, 1)
-      names(df) <- c("Start", "End", "Duration (min)", "Transfers")
+      names(df) <- c("Type", "Start", "End", "Duration (min)", "Transfers")
       
       DT::datatable(
         df, 
