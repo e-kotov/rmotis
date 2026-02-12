@@ -22,7 +22,9 @@ knitr::opts_chunk$set(
 [![Codecov test coverage](https://codecov.io/gh/e-kotov/rmotis/graph/badge.svg)](https://app.codecov.io/gh/e-kotov/rmotis)
 <!-- badges: end -->
 
-The goal of rmotis is to ...
+The goal of `rmotis` is to automate installation of the [MOTIS](https://github.com/motis-project/motis) server for routing and provide user friendly API for the most common use cases in a manner simialar to [`{r5r}`](https://github.com/ipeaGIT/r5r/) and [`osrm`](https://github.com/riatelab/osrm) + [`osrm.backend`](https://github.com/e-kotov/osrm.backend).
+
+This is highly experimental, use at your own risk. `rmotis` depends on [`motis.client`](https://github.com/e-kotov/motis.client) R package which is entirely generated form official API spec using [`openapi3`](https://github.com/e-kotov/openapi3/) R package. All pieces of this are experimental and may break at any time.
 
 ## Installation
 
@@ -32,28 +34,3 @@ You can install the development version of rmotis from [GitHub](https://github.c
 # install.packages("pak")
 pak::pak("e-kotov/rmotis")
 ```
-
-## Example
-
-This is a basic example which shows you how to solve a common problem:
-
-```{r example}
-library(rmotis)
-## basic example code
-```
-
-What is special about using `README.Rmd` instead of just `README.md`? You can include R chunks like so:
-
-```{r cars}
-summary(cars)
-```
-
-You'll still need to render `README.Rmd` regularly, to keep `README.md` up-to-date. `devtools::build_readme()` is handy for this.
-
-You can also embed plots, for example:
-
-```{r pressure, echo = FALSE}
-plot(pressure)
-```
-
-In that case, don't forget to commit and push the resulting figure files, so they display on GitHub and CRAN.
