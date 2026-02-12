@@ -60,26 +60,47 @@ motis_start_server <- function(
   # 3. Launch
   # We update the config file instead of using CLI args because MOTIS does not 
   # support --server.port overrides in all versions.
+  
+  # Use temp files for logging to prevent pipe deadlocks and keep logs available for debug
+  log_stdout <- tempfile(pattern = "motis_out_", fileext = ".log")
+  log_stderr <- tempfile(pattern = "motis_err_", fileext = ".log")
+  
   server_process <- processx::process$new(
     command = cmd,
     args = c("server", paste0("--data=", data_dir)),
     wd = work_dir,
-    stdout = "|",
-    stderr = "|"
+    stdout = log_stdout,
+    stderr = log_stderr
   )
 
-  Sys.sleep(2) # Give it a moment to initialize
-  if (!server_process$is_alive()) {
+  # Grace period check
+  start_time <- Sys.time()
+  is_alive <- TRUE
+  while(difftime(Sys.time(), start_time, units = "secs") < 2) {
+      if (!server_process$is_alive()) {
+          is_alive <- FALSE
+          break
+      }
+      Sys.sleep(0.2)
+  }
+
+  if (!is_alive) {
+    # Read logs from files
+    out_log <- if(file.exists(log_stdout)) readLines(log_stdout, warn = FALSE) else "(empty)"
+    err_log <- if(file.exists(log_stderr)) readLines(log_stderr, warn = FALSE) else "(empty)"
+    
     stop(
       "MOTIS server failed to start. Check logs:
 ",
-      "STDOUT: ",
-      paste(server_process$read_output_lines(), collapse = "
+      "STDOUT:
+",
+      paste(tail(out_log, 20), collapse = "
 "),
       "
 ",
-      "STDERR: ",
-      paste(server_process$read_error_lines(), collapse = "
+      "STDERR:
+",
+      paste(tail(err_log, 20), collapse = "
 "),
       call. = FALSE
     )
@@ -102,7 +123,9 @@ motis_start_server <- function(
     class = c("motis_server", "process", "R6"),
     motis_id = id,
     motis_port = port,
-    motis_dir = work_dir
+    motis_dir = work_dir,
+    log_stdout = log_stdout,
+    log_stderr = log_stderr
   )
 }
 
@@ -111,5 +134,8 @@ print.motis_server <- function(x, ...) {
   cat(sprintf("<MOTIS Server> ID: %s | Port: %d | PID: %d | Alive: %s
 ", 
               attr(x, "motis_id"), attr(x, "motis_port"), x$get_pid(), x$is_alive()))
+  if (!x$is_alive()) {
+      cat("Status: STOPPED / CRASHED\n")
+  }
   invisible(x)
 }
