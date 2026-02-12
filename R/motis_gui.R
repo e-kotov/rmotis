@@ -45,8 +45,8 @@ motis_gui <- function(
     output$map <- mapgl::renderMaplibre({
       mapgl::maplibre(
         style = style,
-        center = center,
-        zoom = zoom
+        center = as.numeric(unname(center)),
+        zoom = as.numeric(unname(zoom))
       ) |>
         mapgl::add_navigation_control() |>
         mapgl::add_fullscreen_control() |>
@@ -88,11 +88,11 @@ motis_gui <- function(
 
     # --- Marker Helpers ---
     update_start <- function(lng, lat) {
-      coords <- list(lat = round(lat, 5), lng = round(lng, 5))
+      coords <- list(lat = round(as.numeric(unname(lat)), 5), lng = round(as.numeric(unname(lng)), 5))
       locations$start <- coords
       session$sendCustomMessage(
         'updateMarker',
-        list(id = 'start', lng = lng, lat = lat)
+        list(id = 'start', lng = coords$lng, lat = coords$lat)
       )
       shiny::updateTextInput(
         session,
@@ -102,11 +102,11 @@ motis_gui <- function(
     }
 
     update_end <- function(lng, lat) {
-      coords <- list(lat = round(lat, 5), lng = round(lng, 5))
+      coords <- list(lat = round(as.numeric(unname(lat)), 5), lng = round(as.numeric(unname(lng)), 5))
       locations$end <- coords
       session$sendCustomMessage(
         'updateMarker',
-        list(id = 'end', lng = lng, lat = lat)
+        list(id = 'end', lng = coords$lng, lat = coords$lat)
       )
       shiny::updateTextInput(
         session,
@@ -164,7 +164,8 @@ motis_gui <- function(
            input$direct_mode, input$transit_modes, input$timetable_view, 
            input$num_itineraries, input$arrive_by,
            input$max_direct_time, input$max_matching_dist, input$fastest_direct_factor,
-           input$with_fares, input$join_interlined, input$max_transfers), {
+           input$with_fares, input$join_interlined, input$max_transfers,
+           input$max_travel_time), {
       
       shiny::req(locations$start, locations$end)
       
@@ -179,18 +180,19 @@ motis_gui <- function(
           res <- motis_plan(
             from = sprintf("%.6f,%.6f", locations$start$lat, locations$start$lng),
             to = sprintf("%.6f,%.6f", locations$end$lat, locations$end$lng),
-            time = as.POSIXct(paste(input$date, input$time), tz = "UTC"),
-            arrive_by = input$arrive_by,
-            timetableView = input$timetable_view,
-            numItineraries = input$num_itineraries,
-            transitModes = t_modes,
-            directModes = input$direct_mode,
-            maxDirectTime = input$max_direct_time * 60, # Convert min to sec
-            maxMatchingDistance = input$max_matching_dist,
-            fastestDirectFactor = input$fastest_direct_factor,
-            withFares = input$with_fares,
-            joinInterlinedLegs = input$join_interlined,
-            maxTransfers = input$max_transfers,
+            time = as.POSIXct(paste(unname(input$date), unname(input$time)), tz = "UTC"),
+            arrive_by = unname(input$arrive_by),
+            timetableView = unname(input$timetable_view),
+            numItineraries = unname(input$num_itineraries),
+            transitModes = unname(t_modes),
+            directModes = unname(input$direct_mode),
+            maxTravelTime = unname(input$max_travel_time),
+            maxDirectTime = unname(input$max_direct_time) * 60, # Convert min to sec
+            maxMatchingDistance = unname(input$max_matching_dist),
+            fastestDirectFactor = unname(input$fastest_direct_factor),
+            withFares = unname(input$with_fares),
+            joinInterlinedLegs = unname(input$join_interlined),
+            maxTransfers = unname(input$max_transfers),
             output = "itineraries"
           )
           motis_exec_time(as.numeric(difftime(Sys.time(), t0, units = "secs")))
