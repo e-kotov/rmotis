@@ -28,7 +28,7 @@
 #'   the `duration_seconds`, and the `distance_meters`.
 #' @export
 #' @importFrom httr2 req_perform resp_body_json
-#' @importFrom purrr map_dfr
+#' @importFrom dplyr bind_rows
 #' @importFrom rlang check_installed
 motis_one_to_many <- function(
   one,
@@ -45,23 +45,23 @@ motis_one_to_many <- function(
   # --- 1. Argument and Input Validation ---
   output <- match.arg(output)
   mode <- match.arg(mode)
-  stopifnot(
-    "'one' must be a single location" = NROW(one) == 1
-  )
+  stopifnot("'one' must be a single location" = NROW(one) == 1)
 
   # --- 2. Format Inputs ---
-  # This endpoint uses a different format ("lat;lon") than the plan endpoint
   one_place <- .format_place_onemany(one)
   many_places_vec <- .format_place_onemany(many)
   many_places_str <- paste(many_places_vec, collapse = ",")
 
   # --- 3. Build Request ---
-  # Capture extra arguments for the backend API call
   dots <- list(...)
-  # Remove arguments that are part of this wrapper's signature
-  dots[c("one", "many", "many_id_col", "mode", "arrive_by", "output")] <- NULL
+  user_server <- dots[[".server"]]
+  dots[c("one", "many", "many_id_col", "mode", "arrive_by", "output", ".server")] <- NULL
 
-  # Build the request object
+  # Collapse any vector arguments in dots to comma-separated strings
+  dots <- lapply(dots, function(x) {
+    if (length(x) > 1 && is.atomic(x)) paste(x, collapse = ",") else x
+  })
+
   api_args <- c(
     list(
       one = one_place,
@@ -69,52 +69,54 @@ motis_one_to_many <- function(
       mode = mode,
       arriveBy = arrive_by,
       max = max,
-      maxMatchingDistance = maxMatchingDistance
+      maxMatchingDistance = maxMatchingDistance,
+      .server = user_server %||% .get_server_url()
     ),
     dots
   )
-  req <- do.call(motis.client::mc_oneToMany, api_args)
-
-  # dry run to catch errors early
-  # httr2::req_dry_run(req)
+  
+  req <- tryCatch({
+    do.call(motis.client::mc_oneToMany, api_args)
+  }, error = function(e) {
+    stop("Failed to construct one-to-many request: ", e$message, call. = FALSE)
+  })
 
   # --- 4. Perform Request ---
-  # This API endpoint is synchronous and doesn't require parallel execution
-  resp <- httr2::req_perform(req)
+  resp <- tryCatch({
+    httr2::req_perform(req)
+  }, error = function(e) {
+    stop("MOTIS one-to-many request failed: ", e$message, call. = FALSE)
+  })
 
   # --- 5. Process and Parse Response ---
   parsed_response <- httr2::resp_body_json(resp)
 
-  if (output == "raw_list") {
-    return(parsed_response)
-  }
+  if (output == "raw_list") return(parsed_response)
 
-  # The response is an ordered list matching the input `many` locations
-  results_df <- purrr::map(
-    parsed_response,
-    ~ {
-      # Check if the list element is empty first
-      if (length(.x) == 0) {
-        data.frame(duration = NA_real_)
-      } else {
-        # If not empty, proceed with the conversion
-        as.data.frame(.x)
-      }
-    }
-  ) |>
-    dplyr::bind_rows()
+  if (length(parsed_response) == 0) {
+    return(data.frame(
+      one_id = .get_ids(one, id_col = one_id_col),
+      many_id = .get_ids(many, id_col = many_id_col),
+      duration = numeric(0)
+    ))
+  }
 
   one_id <- .get_ids(one, id_col = one_id_col)
   many_ids <- .get_ids(many, id_col = many_id_col)
 
-  # Combine IDs with results
-  final_df <- data.frame(
-    one_id = one_id,
-    many_id = many_ids,
-    duration = results_df$duration
-  )
+  # Process responses while ensuring alignment with input many_ids
+  res_list <- lapply(seq_along(parsed_response), function(i) {
+    item <- parsed_response[[i]]
+    if (length(item) == 0) {
+      return(data.frame(one_id = one_id, many_id = many_ids[i], duration = NA_real_))
+    }
+    df <- as.data.frame(item)
+    df$one_id <- one_id
+    df$many_id <- many_ids[i]
+    df
+  })
 
-  return(final_df)
+  dplyr::bind_rows(res_list)
 }
 
 
@@ -128,8 +130,7 @@ motis_one_to_many <- function(
   if (inherits(place, "sf")) {
     rlang::check_installed("sf")
     coords <- sf::st_coordinates(place)
-    lat <- round(coords[, "Y"], 6)
-    lon <- round(coords[, "X"], 6)
+    lat <- round(coords[, "Y"], 6); lon <- round(coords[, "X"], 6)
     return(paste(lat, lon, sep = ";"))
   }
 
@@ -145,29 +146,18 @@ motis_one_to_many <- function(
     if (length(lat_col) == 1 && length(lon_col) == 1) {
       return(paste(place[[lat_col]], place[[lon_col]], sep = ";"))
     }
-    stop(
-      "Data frame must contain either an '",
-      id_col,
-      "' column or coordinate columns ('lat', 'lon').",
-      call. = FALSE
-    )
+    stop("Data frame must contain an '", id_col, "' column or coordinate columns.", call. = FALSE)
   }
 
   if (is.matrix(place) && is.numeric(place)) {
-    if (ncol(place) != 2) {
-      stop("Matrix must have 2 columns.", call. = FALSE)
-    }
+    if (ncol(place) != 2) stop("Matrix must have 2 columns.", call. = FALSE)
     cnames <- tolower(colnames(place))
     if (all(c("lon", "lat") %in% cnames)) {
       return(paste(place[, "lat"], place[, "lon"], sep = ";"))
     }
-    # Fallback to assuming [lon, lat] order if no names
     return(paste(place[, 2], place[, 1], sep = ";"))
   }
 
-  if (is.character(place)) {
-    return(place)
-  }
-
-  stop("Unsupported input type for 'one'/'many'.", call. = FALSE)
+  if (is.character(place)) return(place)
+  stop("Unsupported input type.", call. = FALSE)
 }

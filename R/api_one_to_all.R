@@ -28,7 +28,7 @@
 #'   number of `transfers`.
 #' @export
 #' @importFrom httr2 req_perform resp_body_json
-#' @importFrom purrr map_dfr
+#' @importFrom dplyr bind_rows
 #' @importFrom rlang check_installed
 motis_one_to_all <- function(
   one,
@@ -42,56 +42,61 @@ motis_one_to_all <- function(
   # --- 1. Argument and Input Validation ---
   output <- match.arg(output)
   time <- as.POSIXct(time)
-  stopifnot(
-    "'one' must be a single location" = NROW(one) == 1
-  )
+  stopifnot("'one' must be a single location" = NROW(one) == 1)
 
   # --- 2. Format Inputs ---
   one_place <- .format_place(one)
-  time_str <- paste0(format(time, "%Y-%m-%dT%H:%M:%S", tz = "UTC"), "Z")
+  time_str <- format(time, "%Y-%m-%dT%H:%M:%S", tz = "UTC")
+  if (!grepl("Z$", time_str)) time_str <- paste0(time_str, "Z")
 
   # --- 3. Build Request ---
-  # Capture extra arguments for the backend API call
   dots <- list(...)
-  dots[c(
-    "one",
-    "one_id_col",
-    "time",
-    "arrive_by",
-    "max_travel_time",
-    "output"
-  )] <- NULL
+  user_server <- dots[[".server"]]
+  dots[c("one", "one_id_col", "time", "arrive_by", "max_travel_time", "output", ".server")] <- NULL
 
-  # Build the request object
+  # Collapse any vector arguments in dots to comma-separated strings
+  dots <- lapply(dots, function(x) {
+    if (length(x) > 1 && is.atomic(x)) paste(x, collapse = ",") else x
+  })
+
   api_args <- c(
     list(
       one = one_place,
       time = time_str,
       maxTravelTime = max_travel_time,
-      arriveBy = arrive_by
+      arriveBy = arrive_by,
+      .server = user_server %||% .get_server_url()
     ),
     dots
   )
-  req <- do.call(motis.client::mc_oneToAll, api_args)
-
-  # dry run to catch errors early
-  httr2::req_dry_run(req)
+  
+  req <- tryCatch({
+    do.call(motis.client::mc_oneToAll, api_args)
+  }, error = function(e) {
+    stop("Failed to construct one-to-all request: ", e$message, call. = FALSE)
+  })
 
   # --- 4. Perform Request ---
-  resp <- httr2::req_perform(req)
+  resp <- tryCatch({
+    httr2::req_perform(req)
+  }, error = function(e) {
+    stop("MOTIS one-to-all request failed: ", e$message, call. = FALSE)
+  })
 
   # --- 5. Process and Parse Response ---
   parsed_response <- httr2::resp_body_json(resp)
 
-  if (output == "raw_list") {
-    return(parsed_response)
+  if (output == "raw_list") return(parsed_response)
+
+  # Standard MOTIS one-to-all response structure is a list with "one" and "all" keys
+  if (is.list(parsed_response) && !is.null(parsed_response$all)) {
+    all_reachable <- parsed_response$all
+  } else {
+    # Fallback if it returns a flat list
+    all_reachable <- parsed_response
   }
 
-  # The response is a list of results, each with a target, duration, and transfers
-  results_df <- purrr::map_dfr(parsed_response, as.data.frame)
-
-  if (nrow(results_df) == 0) {
-    message("No reachable locations found within the specified travel time.")
+  if (length(all_reachable) == 0) {
     return(data.frame(
       one_id = .get_ids(one, id_col = one_id_col),
       target_id = character(0),
@@ -102,13 +107,16 @@ motis_one_to_all <- function(
 
   one_id <- .get_ids(one, id_col = one_id_col)
 
-  # Combine IDs with results and rename columns for consistency
-  final_df <- data.frame(
-    one_id = one_id,
-    target_id = results_df$target,
-    duration_seconds = results_df$duration,
-    transfers = results_df$transfers
-  )
-
-  return(final_df)
+  # Convert each ReachablePlace to a data frame row
+  res_list <- lapply(all_reachable, function(item) {
+    if (!is.list(item)) return(NULL)
+    data.frame(
+      one_id = one_id,
+      target_id = as.character(item$place$stopId %||% item$place$name %||% NA_character_),
+      duration_seconds = as.numeric(item$duration %||% NA_real_),
+      transfers = as.integer(item$k %||% NA_integer_) - 1L # k=1 is direct, so transfers = k-1
+    )
+  })
+  
+  dplyr::bind_rows(res_list)
 }

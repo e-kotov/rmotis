@@ -34,7 +34,8 @@
 #'   data frame, or a list.
 #' @export
 #' @importFrom httr2 req_perform_parallel req_perform_sequential resp_body_json
-#' @importFrom purrr map map2 list_rbind map_dbl
+#' @importFrom dplyr bind_rows
+#' @importFrom purrr list_rbind
 #' @importFrom rlang check_installed
 #' @importFrom tidyr pivot_wider
 motis_plan <- function(
@@ -59,89 +60,72 @@ motis_plan <- function(
   time <- as.POSIXct(time)
 
   # --- 2. Initialize common variables ---
-  time_str <- paste0(format(time, "%Y-%m-%dT%H:%M:%S", tz = "UTC"), "Z")
+  time_str <- format(time, "%Y-%m-%dT%H:%M:%S", tz = "UTC")
+  if (!grepl("Z$", time_str)) time_str <- paste0(time_str, "Z")
+  
   dots <- list(...)
-  dots[c(
-    "from",
-    "to",
-    "time",
-    "arrive_by",
-    "from_id_col",
-    "to_id_col",
-    "output",
-    "parallel"
-  )] <- NULL
+  user_server <- dots[[".server"]]
+  # Clean dots
+  dots[c("from", "to", "time", "arrive_by", "from_id_col", "to_id_col", "output", "parallel", ".server")] <- NULL
 
-  # --- 3. Conditional Logic: Matrix vs. Paired Journeys ---
+  # Collapse any vector arguments in dots to comma-separated strings
+  dots <- lapply(dots, function(x) {
+    if (length(x) > 1 && is.atomic(x)) paste(x, collapse = ",") else x
+  })
 
-  # --- 3a. MANY-TO-MANY logic for Travel Time Matrix ---
+  # Helper to build a single request
+  build_req <- function(f, t) {
+    api_args <- c(
+      list(
+        fromPlace = f,
+        toPlace = t,
+        time = time_str,
+        arriveBy = arrive_by,
+        .build_only = TRUE,
+        .server = user_server %||% .get_server_url()
+      ),
+      dots
+    )
+    tryCatch({
+      do.call(motis.client::mc_plan, api_args)
+    }, error = function(e) {
+      stop("Failed to construct MOTIS request: ", e$message, call. = FALSE)
+    })
+  }
+
+  # --- 3. MANY-TO-MANY logic for Travel Time Matrix ---
   if (output %in% c("travel_time_matrix_long", "travel_time_matrix_wide")) {
-    if ((NROW(from) * NROW(to)) > 100) {
-      # Adjusted warning threshold
-      warning(
-        "For large travel time matrices, using the dedicated `motis_table()` function is much more efficient.",
-        call. = FALSE
-      )
-    }
-
-    # Format all origins and destinations
     from_place <- .format_place(from, id_col = from_id_col)
     to_place <- .format_place(to, id_col = to_id_col)
 
-    # Get IDs for final output table
+    if ((length(from_place) * length(to_place)) > 100) {
+      warning("For large travel time matrices, use `motis_table()` for better performance.", call. = FALSE)
+    }
+
     from_ids <- .get_ids(from, id_col = from_id_col)
     to_ids <- .get_ids(to, id_col = to_id_col)
+    combinations <- expand.grid(from_idx = seq_along(from_place), to_idx = seq_along(to_place))
 
-    # Create all combinations of from and to indices
-    combinations <- expand.grid(
-      from_idx = seq_along(from_place),
-      to_idx = seq_along(to_place)
-    )
-
-    # Build requests for every combination
-    requests <- purrr::map2(
-      from_place[combinations$from_idx],
-      to_place[combinations$to_idx],
-      ~ {
-        api_args <- c(
-          list(
-            fromPlace = .x,
-            toPlace = .y,
-            time = time_str,
-            arriveBy = arrive_by,
-            .build_only = TRUE
-          ),
-          dots
-        )
-        do.call(motis.client::mc_plan, api_args)
-      }
-    )
-
-    # Perform requests
-    responses <- if (isTRUE(parallel)) {
-      httr2::req_perform_parallel(requests)
-    } else {
-      httr2::req_perform_sequential(requests)
+    requests <- vector("list", nrow(combinations))
+    for (i in seq_len(nrow(combinations))) {
+      requests[[i]] <- build_req(from_place[combinations$from_idx[i]], to_place[combinations$to_idx[i]])
     }
 
-    # Process and parse responses incrementally
-    if (output == "raw_list") {
-      return(purrr::map(responses, .as_plan_list))
-    }
-
-    min_durations <- purrr::map_dbl(responses, function(resp) {
-      parsed <- .as_plan_list(resp)
-      itins <- parsed$itineraries
-      if (length(itins) == 0) {
-        return(NA_real_)
-      }
-      
-      durs <- numeric(length(itins))
-      for (i in seq_along(itins)) {
-        durs[i] <- itins[[i]]$duration %||% NA_real_
-      }
-      min(durs, na.rm = TRUE) / 60
+    responses <- tryCatch({
+      if (isTRUE(parallel)) httr2::req_perform_parallel(requests) else httr2::req_perform_sequential(requests)
+    }, error = function(e) {
+      stop("MOTIS travel time matrix request failed: ", e$message, call. = FALSE)
     })
+
+    if (length(responses) == 0) return(data.frame(from_id = character(0), to_id = character(0), duration_minutes = numeric(0)))
+    if (output == "raw_list") return(lapply(responses, .as_plan_list))
+
+    min_durations <- vapply(responses, function(resp) {
+      parsed <- tryCatch(.as_plan_list(resp), error = function(e) NULL)
+      if (is.null(parsed) || is.null(parsed$itineraries) || length(parsed$itineraries) == 0) return(NA_real_)
+      durs <- vapply(parsed$itineraries, function(it) as.numeric(it$duration %||% NA_real_), numeric(1))
+      min(durs, na.rm = TRUE) / 60
+    }, numeric(1))
 
     long_matrix <- data.frame(
       from_id = from_ids[combinations$from_idx],
@@ -149,162 +133,49 @@ motis_plan <- function(
       duration_minutes = min_durations
     )
 
-    if (output == "travel_time_matrix_long") {
-      return(long_matrix)
-    } else {
-      # travel_time_matrix_wide
-      return(tidyr::pivot_wider(
-        long_matrix,
-        names_from = "to_id",
-        values_from = "duration_minutes"
-      ))
-    }
+    if (output == "travel_time_matrix_long") return(long_matrix)
+    return(tidyr::pivot_wider(long_matrix, names_from = "to_id", values_from = "duration_minutes"))
 
-    # --- 3b. ONE-TO-ONE logic for Itineraries, Legs, and Raw List ---
+  # --- 4. ONE-TO-ONE logic for Itineraries, Legs, and Raw List ---
   } else {
-    stopifnot(
-      "Length of 'from' and 'to' must be equal for this output type" = NROW(
-        from
-      ) ==
-        NROW(to)
-    )
-
-    # Format inputs for paired journeys
+    stopifnot("Length of 'from' and 'to' must be equal" = NROW(from) == NROW(to))
     from_place <- .format_place(from, id_col = from_id_col)
     to_place <- .format_place(to, id_col = to_id_col)
 
-    # Build requests for paired journeys
-    requests <- purrr::map2(
-      from_place,
-      to_place,
-      ~ {
-        api_args <- c(
-          list(
-            fromPlace = .x,
-            toPlace = .y,
-            time = time_str,
-            arriveBy = arrive_by,
-            .build_only = TRUE
-          ),
-          dots
-        )
-        do.call(motis.client::mc_plan, api_args)
-      }
-    )
-
-    # Perform requests
-    responses <- if (isTRUE(parallel)) {
-      httr2::req_perform_parallel(requests)
-    } else {
-      httr2::req_perform_sequential(requests)
+    requests <- vector("list", length(from_place))
+    for (i in seq_along(from_place)) {
+      requests[[i]] <- build_req(from_place[i], to_place[i])
     }
 
-    # Process and parse responses incrementally to save memory
-    if (output == "raw_list") {
-      return(purrr::map(responses, .as_plan_list))
+    responses <- tryCatch({
+      if (isTRUE(parallel)) httr2::req_perform_parallel(requests) else httr2::req_perform_sequential(requests)
+    }, error = function(e) {
+      stop("MOTIS routing request failed: ", e$message, call. = FALSE)
+    })
+
+    if (length(responses) == 0) {
+      if (output == "raw_list") return(list())
+      return(.st_as_sf_plan(if (output == "itineraries") .itins_template() else .legs_template()))
     }
 
-    names(responses) <- seq_along(responses)
+    if (output == "raw_list") return(lapply(responses, .as_plan_list))
 
-    if (output == "itineraries") {
-      itineraries <- purrr::list_rbind(
-        purrr::map(
-          responses,
-          .flatten_itineraries,
-          include_direct = TRUE,
-          decode_geom = TRUE
-        ),
-        names_to = "request_id"
-      )
-      return(.st_as_sf_plan(itineraries))
-    } else if (output == "legs") {
-      legs <- purrr::list_rbind(
-        purrr::map(
-          responses,
-          .flatten_legs,
-          decode_geom = TRUE,
-          include_direct = TRUE
-        ),
-        names_to = "request_id"
-      )
-      return(.st_as_sf_plan(legs))
+    results_list <- vector("list", length(responses))
+    for (i in seq_along(responses)) {
+      results_list[[i]] <- tryCatch({
+        if (output == "itineraries") {
+          .flatten_itineraries(responses[[i]], include_direct = TRUE, decode_geom = TRUE)
+        } else {
+          .flatten_legs(responses[[i]], include_direct = TRUE, decode_geom = TRUE)
+        }
+      }, error = function(e) {
+        warning("Flattening failed for result ", i, ": ", e$message)
+        if (output == "itineraries") .itins_template() else .legs_template()
+      })
     }
+    
+    names(results_list) <- seq_along(results_list)
+    combined <- dplyr::bind_rows(results_list, .id = "request_id")
+    return(.st_as_sf_plan(combined))
   }
-}
-
-#' Internal helper to format location inputs
-#' @param place A data.frame, sf object, matrix, or character vector.
-#' @param id_col The name of the ID column to use.
-#' @return A character vector of station IDs or "lat,lon" strings.
-#' @noRd
-.format_place <- function(place, id_col = "id") {
-  if (inherits(place, "sf")) {
-    rlang::check_installed("sf")
-    coords <- sf::st_coordinates(place)
-    lat <- round(coords[, "Y"], 6)
-    lon <- round(coords[, "X"], 6)
-    return(paste(lat, lon, sep = ","))
-  }
-
-  if (is.data.frame(place)) {
-    p_names <- tolower(names(place))
-    lat_col <- which(p_names %in% c("lat", "latitude"))
-    lon_col <- which(p_names %in% c("lon", "lng", "longitude"))
-
-    if (length(lat_col) == 1 && length(lon_col) == 1) {
-      lat <- round(place[[lat_col]], 6)
-      lon <- round(place[[lon_col]], 6)
-      return(paste(lat, lon, sep = ","))
-    }
-
-    id_col_lower <- tolower(id_col)
-    if (id_col_lower %in% p_names) {
-      id_col_idx <- which(p_names == id_col_lower)
-      return(as.character(place[[id_col_idx]]))
-    }
-
-    stop(
-      "Data frame must contain either coordinate columns ('lat', 'lon') or an '",
-      id_col,
-      "' column.",
-      call. = FALSE
-    )
-  }
-
-  if (is.matrix(place) && is.numeric(place)) {
-    if (ncol(place) != 2) {
-      stop("Matrix must have 2 columns.", call. = FALSE)
-    }
-    cnames <- tolower(colnames(place))
-    if (all(c("lon", "lat") %in% cnames)) {
-      lat <- round(place[, "lat"], 6)
-      lon <- round(place[, "lon"], 6)
-      return(paste(lat, lon, sep = ","))
-    }
-    lat <- round(place[, 2], 6)
-    lon <- round(place[, 1], 6)
-    return(paste(lat, lon, sep = ","))
-  }
-
-  if (is.character(place)) {
-    return(place)
-  }
-
-  stop("Unsupported input type for 'from'/'to'.", call. = FALSE)
-}
-
-#' Internal helper to extract IDs from various inputs
-#' @param place A data.frame, sf object, matrix, or character vector.
-#' @param id_col The name of the ID column to use.
-#' @return A vector of IDs.
-#' @noRd
-.get_ids <- function(place, id_col) {
-  if (is.data.frame(place) && id_col %in% names(place)) {
-    return(place[[id_col]])
-  }
-  if (is.character(place)) {
-    return(place)
-  }
-  # For matrices or sf objects without an ID col, create a sequence
-  return(seq_len(NROW(place)))
 }

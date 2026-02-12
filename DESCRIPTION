@@ -22,8 +22,12 @@ Imports:
     ps,
     RcppSimdJson
 Suggests: 
+    DT,
+    mapgl,
     sf,
     sfheaders,
+    shiny,
+    shinyjs,
     testthat (>= 3.0.0)
 Remotes:
     SymbolixAU/googlePolylines,
