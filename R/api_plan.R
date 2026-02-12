@@ -1,7 +1,7 @@
 #' Plan a journey between two points or create a travel time matrix
 #'
 #' This function is a user-friendly wrapper around the MOTIS `plan` API.
-#' It can plan paired journeys (from[1] to to[1], etc.) or compute a
+#' It can plan paired journeys (`from[1]` to `to[1]`, etc.) or compute a
 #' full travel time matrix (from all origins to all destinations).
 #'
 #' @param from The origin location(s). Can be a character vector of station IDs,
@@ -117,7 +117,7 @@ motis_plan <- function(
       }
     )
 
-    # Perform requests (same as before)
+    # Perform requests
     responses <- if (isTRUE(parallel)) {
       httr2::req_perform_parallel(requests)
     } else {
@@ -209,10 +209,16 @@ motis_plan <- function(
         purrr::map(
           parsed_responses,
           .flatten_itineraries,
-          include_direct = TRUE
+          include_direct = TRUE,
+          decode_geom = TRUE
         ),
         names_to = "request_id"
       )
+      if (
+        requireNamespace("sf", quietly = TRUE) && "geom" %in% names(itineraries)
+      ) {
+        itineraries <- sf::st_as_sf(itineraries)
+      }
       return(itineraries)
     } else if (output == "legs") {
       legs <- purrr::list_rbind(
@@ -224,6 +230,9 @@ motis_plan <- function(
         ),
         names_to = "request_id"
       )
+      if (requireNamespace("sf", quietly = TRUE) && "geom" %in% names(legs)) {
+        legs <- sf::st_as_sf(legs)
+      }
       return(legs)
     }
   }

@@ -348,6 +348,6 @@ data frame, or a list.
 }
 \description{
 This function is a user-friendly wrapper around the MOTIS \code{plan} API.
-It can plan paired journeys (from\link{1} to to\link{1}, etc.) or compute a
+It can plan paired journeys (\code{from[1]} to \code{to[1]}, etc.) or compute a
 full travel time matrix (from all origins to all destinations).
 }
