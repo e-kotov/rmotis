@@ -64,7 +64,7 @@ motis_add_assets <- function(
 
       if (!dir.exists(src_path)) {
         message(
-          "  ℹ Asset directory not found in MOTIS installation, skipping: ",
+          "  \u2139 Asset directory not found in MOTIS installation, skipping: ",
           asset
         )
         next
@@ -473,7 +473,7 @@ motis_config <- function(
     motis_unlock_limits(config_file, force = TRUE)
   }
 
-  message("✅ `config.yml` generated and configured successfully.")
+  message("\u2705 `config.yml` generated and configured successfully.")
   invisible(config_file)
 }
 
@@ -517,7 +517,7 @@ motis_import <- function(
   if (!dir.exists(data_dir)) {
     stop("MOTIS import failed to create the 'data' directory.", call. = FALSE)
   }
-  message("✅ Data imported successfully in: ", data_dir)
+  message("\u2705 Data imported successfully in: ", data_dir)
   invisible(data_dir)
 }
 

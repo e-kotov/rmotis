@@ -214,7 +214,7 @@ motis_install <- function(
   handle_path_setting(path_action, dest_dir, project_path, quiet)
 
   if (!quiet) {
-    message("\n✅ MOTIS installation successful!")
+    message("\n\u2705 MOTIS installation successful!")
   }
   return(invisible(dest_dir))
 }
@@ -293,7 +293,7 @@ motis_uninstall <- function(location = "cache", path = NULL, quiet = FALSE) {
     message("Removing directory...")
     unlink(dir_to_remove, recursive = TRUE, force = TRUE)
     if (!dir.exists(dir_to_remove)) {
-      message("✅ Successfully uninstalled MOTIS binaries.")
+      message("\u2705 Successfully uninstalled MOTIS binaries.")
       return(invisible(TRUE))
     } else {
       warning("Failed to remove directory: ", dir_to_remove, call. = FALSE)

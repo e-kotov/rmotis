@@ -108,8 +108,9 @@
 #' @param mode The routing profile to use. Defaults to `"WALK"`.
 #' @param arrive_by Logical. If `FALSE` (the default), calculates routes from
 #'   `one` to `many`. If `TRUE`, calculates routes from `many` to `one`.
-#' @param ... Additional parameters to be passed to the MOTIS One-to-Many API,
-#'   (e.g., `max`, `maxMatchingDistance`).
+#' @param max maximum travel time in seconds
+#' @param maxMatchingDistance maximum matching distance in meters to match geo coordinates to the street network
+#' @param ... Additional parameters to be passed to the MOTIS One-to-Many API.
 #' @return Invisibly returns a character vector containing the generated request
 #'   string. The primary side effect is writing this string to `output_file`.
 #' @export

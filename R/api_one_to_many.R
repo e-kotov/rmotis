@@ -14,15 +14,18 @@
 #'   frame/tibble with ID or coordinate columns, an `sf` object with POINT
 #'   geometry, or a numeric matrix (`lon`, `lat`).
 #' @param many_id_col The name of the column in `many` to use for identifying
-#'   the points in the output. Defaults to `"id"`. If the input has no such
 #'   column, a sequence of numbers is used.
+#' @param one_id_col The name of the column in `one` to use for identifying
+#'   the point in the output. Defaults to `"id"`.
+#' @param max maximum travel time in seconds
+#' @param maxMatchingDistance maximum matching distance in meters to match geo coordinates to the street network
 #' @param mode The routing profile to use. Defaults to `"WALK"`.
 #' @param arrive_by Logical. If `FALSE` (the default), calculates routes from
 #'   `one` to `many`. If `TRUE`, calculates routes from `many` to `one`.
 #' @param output The desired output format. One of:
 #'   - `"data.frame"` (default): A tidy data frame with travel times and distances.
 #'   - `"raw_list"`: The raw parsed JSON response as a list.
-#' @inheritDotParams motis.client::mc_oneToMany -one -many -mode -arriveBy
+#' @inheritDotParams motis.client::mc_oneToMany -one -many -mode -arriveBy -max -maxMatchingDistance -.endpoint
 #' @return Depending on the `output` parameter, a `data.frame` or a list.
 #'   The data frame will contain columns for the identifier of each point in `many`,
 #'   the `duration_seconds`, and the `distance_meters`.

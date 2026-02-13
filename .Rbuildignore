@@ -8,3 +8,7 @@
 ^private$
 ^bin$
 ^local-testing$
+^\.DS_Store$
+^GEMINI\.md$
+^README\.qmd$
+^.*\.DS_Store$

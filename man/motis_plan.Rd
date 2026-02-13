@@ -321,7 +321,6 @@ Values < 1.0 will return all slowDirect connections.}
     \item{\code{.throttle_rate}}{Requests per second (numeric). If set, throttling is applied.}
     \item{\code{.build_only}}{If TRUE, return the unperformed request object.}
     \item{\code{.server}}{Override the server URL for this call.}
-    \item{\code{.endpoint}}{A string to override the path for this specific request (e.g., '/v2/users/{id}'). If provided, it will be used instead of the default path from the specification.}
     \item{\code{.referer}}{Optional Referer header value.}
     \item{\code{.req_options}}{Named list of curl options passed to \code{httr2::req_options()}.}
     \item{\code{.handle_response}}{Optional function \code{function(resp) ...} to post-process the response.}

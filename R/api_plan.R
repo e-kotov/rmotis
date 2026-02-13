@@ -29,7 +29,7 @@
 #'   - `"raw_list"`: The raw parsed JSON response as a list.
 #' @param parallel Logical. If `TRUE`, executes multiple requests in parallel.
 #'   Defaults to `FALSE`.
-#' @inheritDotParams motis.client::mc_plan -fromPlace -toPlace -time -arriveBy
+#' @inheritDotParams motis.client::mc_plan -fromPlace -toPlace -time -arriveBy -.endpoint
 #' @return Depending on the `output` parameter, an `sf` data frame, a regular
 #'   data frame, or a list.
 #' @export

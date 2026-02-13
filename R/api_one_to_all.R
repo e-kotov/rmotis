@@ -21,7 +21,7 @@
 #' @param output The desired output format. One of:
 #'   - `"data.frame"` (default): A tidy data frame with travel times and transfers.
 #'   - `"raw_list"`: The raw parsed JSON response as a list.
-#' @inheritDotParams motis.client::mc_oneToAll -one -time -maxTravelTime -arriveBy
+#' @inheritDotParams motis.client::mc_oneToAll -one -time -maxTravelTime -arriveBy -.endpoint
 #' @return Depending on the `output` parameter, a `data.frame` or a list.
 #'   The data frame will contain columns for the identifier of the `one` point,
 #'   the `target_id` of the reachable stop, the `duration_seconds`, and the

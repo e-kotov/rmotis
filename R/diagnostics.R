@@ -54,26 +54,26 @@ motis_diagnose <- function(
   message("\n[1] MOTIS Executable:")
   motis_cmd <- try(resolve_motis_cmd(motis_path), silent = TRUE)
   if (!inherits(motis_cmd, "try-error")) {
-    message("  ✔ Found at: ", motis_cmd)
+    message("  \u2714 Found at: ", motis_cmd)
     version_res <- tryCatch(
       processx::run(motis_cmd, "--version", error_on_status = FALSE),
       error = function(e) NULL
     )
     if (!is.null(version_res) && version_res$status == 0) {
-      message("  ✔ Version: ", trimws(version_res$stdout))
+      message("  \u2714 Version: ", trimws(version_res$stdout))
     } else {
       message(
-        "  ✖ Could not execute `motis --version`. Executable might be corrupted."
+        "  \u2716 Could not execute `motis --version`. Executable might be corrupted."
       )
     }
   } else {
-    message("  ✖ Not found. ", gsub("Error : |\n", "", motis_cmd))
+    message("  \u2716 Not found. ", gsub("Error : |\n", "", motis_cmd))
   }
 
   # --- 2. System Info ---
   message("\n[2] System Information:")
   platform <- get_platform_info()
-  message("  ✔ Platform: ", platform$os, "-", platform$arch)
+  message("  \u2714 Platform: ", platform$os, "-", platform$arch)
 
   # --- 3. Server Status Check ---
   message("\n[3] Server Status:")
@@ -91,31 +91,31 @@ motis_diagnose <- function(
   )
 
   if (server_running) {
-    message("  ✔ A server appears to be running at: ", url)
+    message("  \u2714 A server appears to be running at: ", url)
   } else {
-    message("  ℹ No server detected at: ", url)
+    message("  \u2139 No server detected at: ", url)
   }
 
   # --- 4. Graph File Check ---
   message("\n[4] Graph Files:")
   if (is.null(work_dir)) {
-    message("  ℹ No `work_dir` provided, skipping check.")
+    message("  \u2139 No `work_dir` provided, skipping check.")
   } else {
     work_dir_norm <- normalizePath(work_dir, mustWork = FALSE)
     data_dir <- file.path(work_dir_norm, "data")
     config_file <- file.path(work_dir_norm, "config.yml")
-    message("  ℹ Checking in: ", work_dir_norm)
+    message("  \u2139 Checking in: ", work_dir_norm)
 
     if (file.exists(config_file)) {
-      message("  ✔ Found config.yml.")
+      message("  \u2714 Found config.yml.")
     } else {
-      message("  ✖ config.yml not found.")
+      message("  \u2716 config.yml not found.")
     }
 
     if (!dir.exists(data_dir)) {
-      message("  ✖ 'data' directory not found.")
+      message("  \u2716 'data' directory not found.")
     } else {
-      message("  ✔ 'data' directory found.")
+      message("  \u2714 'data' directory found.")
     }
   }
   message("\n--- End of Diagnostic ---")

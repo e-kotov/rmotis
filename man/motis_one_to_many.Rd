@@ -23,13 +23,15 @@ motis_one_to_many(
 a data frame/tibble with coordinate columns, an \code{sf} object with a
 single POINT geometry, or a numeric vector/matrix (\code{lon}, \code{lat}).}
 
+\item{one_id_col}{The name of the column in \code{one} to use for identifying
+the point in the output. Defaults to \code{"id"}.}
+
 \item{many}{The multiple destinations (when \code{arrive_by = FALSE}) or origins
 (when \code{arrive_by = TRUE}). Can be a character vector of IDs, a data
 frame/tibble with ID or coordinate columns, an \code{sf} object with POINT
 geometry, or a numeric matrix (\code{lon}, \code{lat}).}
 
 \item{many_id_col}{The name of the column in \code{many} to use for identifying
-the points in the output. Defaults to \code{"id"}. If the input has no such
 column, a sequence of numbers is used.}
 
 \item{mode}{The routing profile to use. Defaults to \code{"WALK"}.}
@@ -37,11 +39,13 @@ column, a sequence of numbers is used.}
 \item{arrive_by}{Logical. If \code{FALSE} (the default), calculates routes from
 \code{one} to \code{many}. If \code{TRUE}, calculates routes from \code{many} to \code{one}.}
 
+\item{max}{maximum travel time in seconds}
+
+\item{maxMatchingDistance}{maximum matching distance in meters to match geo coordinates to the street network}
+
 \item{...}{
   Arguments passed on to \code{\link[motis.client:mc_oneToMany]{motis.client::mc_oneToMany}}
   \describe{
-    \item{\code{max}}{maximum travel time in seconds}
-    \item{\code{maxMatchingDistance}}{maximum matching distance in meters to match geo coordinates to the street network}
     \item{\code{elevationCosts}}{Optional. Default is \code{NONE}.
 
 Set an elevation cost profile, to penalize routes with incline.
@@ -69,7 +73,6 @@ Allowed values: NONE, LOW, HIGH.}
     \item{\code{.throttle_rate}}{Requests per second (numeric). If set, throttling is applied.}
     \item{\code{.build_only}}{If TRUE, return the unperformed request object.}
     \item{\code{.server}}{Override the server URL for this call.}
-    \item{\code{.endpoint}}{A string to override the path for this specific request (e.g., '/v2/users/{id}'). If provided, it will be used instead of the default path from the specification.}
     \item{\code{.referer}}{Optional Referer header value.}
     \item{\code{.req_options}}{Named list of curl options passed to \code{httr2::req_options()}.}
     \item{\code{.handle_response}}{Optional function \code{function(resp) ...} to post-process the response.}

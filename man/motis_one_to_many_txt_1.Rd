@@ -34,8 +34,11 @@ will be written.}
 \item{arrive_by}{Logical. If \code{FALSE} (the default), calculates routes from
 \code{one} to \code{many}. If \code{TRUE}, calculates routes from \code{many} to \code{one}.}
 
-\item{...}{Additional parameters to be passed to the MOTIS One-to-Many API,
-(e.g., \code{max}, \code{maxMatchingDistance}).}
+\item{max}{maximum travel time in seconds}
+
+\item{maxMatchingDistance}{maximum matching distance in meters to match geo coordinates to the street network}
+
+\item{...}{Additional parameters to be passed to the MOTIS One-to-Many API.}
 }
 \value{
 Invisibly returns a character vector containing the generated request
