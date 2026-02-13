@@ -11,10 +11,10 @@
 
 ## Phase 2: One-to-All
 
-- [ ] Task: Implement `motis_one_to_all_generate_batch`
-    - [ ] Write Tests (Red Phase)
-    - [ ] Implement Function (Green Phase)
-    - [ ] Verify Coverage
+- [x] Task: Implement `motis_one_to_all_generate_batch` 0e7fc29
+    - [x] Write Tests (Red Phase)
+    - [x] Implement Function (Green Phase)
+    - [x] Verify Coverage
 - [ ] Task: Conductor - User Manual Verification 'One-to-All' (Protocol in workflow.md)
 
 ## Phase 3: Finalization
