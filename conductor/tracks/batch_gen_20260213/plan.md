@@ -3,10 +3,10 @@
 ## Phase 1: Infrastructure & One-to-Many
 
 - [x] Task: Refactor shared batch helpers from `motis_plan_generate_batch.R` to `helpers.R` 807c756
-- [ ] Task: Implement `motis_one_to_many_generate_batch`
-    - [ ] Write Tests (Red Phase)
-    - [ ] Implement Function (Green Phase)
-    - [ ] Verify Coverage
+- [x] Task: Implement `motis_one_to_many_generate_batch` 552c094
+    - [x] Write Tests (Red Phase)
+    - [x] Implement Function (Green Phase)
+    - [x] Verify Coverage
 - [ ] Task: Conductor - User Manual Verification 'Infrastructure & One-to-Many' (Protocol in workflow.md)
 
 ## Phase 2: One-to-All
