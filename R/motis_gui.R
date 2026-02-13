@@ -310,6 +310,65 @@ motis_gui <- function(
       )
     })
 
+    shiny::observeEvent(input$copy_code, {
+      # 1. Check if we have enough data
+      if (is.null(locations$start) || is.null(locations$end)) {
+        shiny::showNotification(
+          "Please select a start and end point on the map first.",
+          type = "warning"
+        )
+        return()
+      }
+
+      # 2. Gather Configuration
+      url <- getOption("rmotis.url")
+      t_modes <- input$transit_modes
+      if (is.null(t_modes)) t_modes <- ""
+      
+      # Handle modes vector formatting
+      format_vec <- function(v) {
+        if (length(v) == 1) return(sprintf('"%s"', v))
+        paste0('c(', paste(sprintf('"%s"', v), collapse = ", "), ')')
+      }
+
+      header_code <- sprintf(
+        "library(rmotis)\n\n# --- MOTIS Configuration ---\noptions(rmotis.url = \"%s\")\n\n",
+        url
+      )
+
+      main_code <- sprintf(
+        "# --- Calculate Route ---\nres <- motis_plan(\n  from = \"%.6f,%.6f\",\n  to = \"%.6f,%.6f\",\n  time = \"%s %s\",\n  arrive_by = %s,\n  timetableView = %s,\n  numItineraries = %d,\n  transitModes = %s,\n  directModes = \"%s\",\n  maxTravelTime = %d,\n  maxDirectTime = %d, # in seconds\n  maxMatchingDistance = %d,\n  fastestDirectFactor = %.1f,\n  withFares = %s,\n  joinInterlinedLegs = %s,\n  maxTransfers = %d,\n  output = \"itineraries\"\n)\n\n# Visualize\nmapgl::maplibre(style = mapgl::carto_style(\"voyager\")) |>\n  mapgl::add_line_layer(id = \"route\", source = res[1, ], line_color = \"#3b82f6\", line_width = 5)",
+        locations$start$lat, locations$start$lng,
+        locations$end$lat, locations$end$lng,
+        input$date, input$time,
+        toupper(as.character(input$arrive_by)),
+        toupper(as.character(input$timetable_view)),
+        input$num_itineraries,
+        format_vec(t_modes),
+        input$direct_mode,
+        input$max_travel_time,
+        input$max_direct_time * 60,
+        input$max_matching_dist,
+        input$fastest_direct_factor,
+        toupper(as.character(input$with_fares)),
+        toupper(as.character(input$join_interlined)),
+        input$max_transfers
+      )
+
+      shiny::showModal(shiny::modalDialog(
+        title = "R Code for Reproducible Analysis",
+        shiny::tags$pre(
+          id = "copy_code_block",
+          style = "background-color: #f8f9fa; padding: 15px; border: 1px solid #dee2e6; border-radius: 4px; max-height: 400px; overflow-y: auto; white-space: pre-wrap; font-family: monospace; font-size: 13px;",
+          paste0(header_code, main_code)
+        ),
+        shiny::helpText("Copy and run this code in your R console to reproduce the current analysis."),
+        footer = shiny::modalButton("Dismiss"),
+        easyClose = TRUE,
+        size = "l"
+      ))
+    })
+
     # -- Reset --
     shiny::observeEvent(input$reset, {
       locations$start <- NULL

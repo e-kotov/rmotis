@@ -430,7 +430,16 @@
           class = "map-wrapper",
           shiny::uiOutput("route_stats"),
           shiny::uiOutput("exec_time_overlay"),
-          mapgl::maplibreOutput("map")
+          mapgl::maplibreOutput("map"),
+          shiny::div(
+            style = "position: absolute; bottom: 40px; right: 10px; z-index: 1000;",
+            shiny::actionButton(
+              "copy_code",
+              "Copy R Code",
+              icon = shiny::icon("code"),
+              style = "background: white; border: 1px solid #ccc; font-size: 12px; padding: 4px 8px;"
+            )
+          )
         ),
         shiny::div(
           class = "table-wrapper",
