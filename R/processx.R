@@ -105,15 +105,17 @@ motis_add_assets <- function(
 
 #' Set Server Address in a MOTIS Configuration File
 #'
-#' Safely reads a `config.yml` file, adds or updates the `server` settings
-#' for `host` and `port`, and writes the file back.
+#' Updates the `server` settings for `host` and `port` in a MOTIS configuration
+#' file. Automatically targets the server configuration (usually in the `data/`
+#' subdirectory).
 #'
 #' @details
 #' Because this function modifies a file in place, it requires confirmation if
 #' run in an interactive session. To override this and allow modification without
 #' a prompt (e.g., in scripts), use `force = TRUE`.
 #'
-#' @param config_path A string. The path to the `config.yml` file to modify.
+#' @param path A string. Path to the `config.yml` file, the `data/` directory,
+#'   or the root MOTIS project directory.
 #' @param host A string. The IP address for the server to bind to.
 #' @param port An integer between 1 and 65535. The TCP port for the server.
 #' @param force A logical. If `FALSE` (default), the function will ask for
@@ -124,11 +126,13 @@ motis_add_assets <- function(
 #' @importFrom yaml write_yaml
 #' @importFrom utils askYesNo
 motis_set_server_address <- function(
-  config_path,
+  path,
   host = "127.0.0.1",
   port = 8080L,
   force = FALSE
 ) {
+  config_path <- .resolve_config_path(path, type = "server")
+  
   # --- 1. Argument Validation ---
   if (
     !is.numeric(port) ||
@@ -180,6 +184,180 @@ motis_set_server_address <- function(
   invisible(config_path)
 }
 
+#' Configure a MOTIS Server
+#'
+#' Updates the `config.yml` file used for running the MOTIS server (typically
+#' located in the `data/` subdirectory). This function can automatically
+#' identify the data directory even if you provide the path to the root
+#' project folder.
+#'
+#' @section Configuration Options:
+#'
+#' **Server Settings (`server`):**
+#' \itemize{
+#'   \item `host`: The IP address for the server to bind to (default: "0.0.0.0").
+#'   \item `port`: The TCP port for the server (default: 8080).
+#'   \item `web_folder`: Folder with static files to serve (e.g., "ui").
+#'   \item `n_threads`: Number of hardware threads to use (default: auto).
+#'   \item `data_attribution_link`: Link to data sources or license.
+#' }
+#'
+#' **Routing Limits (`limits`):**
+#' \itemize{
+#'   \item `stoptimes_max_results`: Max results for stoptimes (default: 256).
+#'   \item `plan_max_results`: Max results for plan queries (default: 256).
+#'   \item `plan_max_search_window_minutes`: Max search window in minutes (max: 21600).
+#'   \item `onetoall_max_results`: Max results for one-to-all queries.
+#'   \item `onetoall_max_travel_minutes`: Max travel duration for one-to-all.
+#'   \item `routing_max_timeout_seconds`: Max duration for a routing query (default: 90).
+#'   \item `street_routing_max_prepost_transit_seconds`: Limit for maxPre/PostTransitTime.
+#'   \item `street_routing_max_direct_seconds`: Limit for maxDirectTime.
+#' }
+#'
+#' **Modules:**
+#' \itemize{
+#'   \item `street_routing`: Enable street routing (Boolean or list with `elevation_data_dir`).
+#'   \item `geocoding`: Enable geocoding (Boolean).
+#'   \item `reverse_geocoding`: Enable reverse geocoding (Boolean).
+#'   \item `osr_footpath`: Enable OSR footpath routing (Boolean).
+#' }
+#'
+#' @param path A string. Path to the `config.yml` file, the `data/` directory,
+#'   or the root MOTIS project directory.
+#' @param ... Named arguments representing the configuration structure. Nested
+#'   keys can be provided as named lists.
+#' @param force A logical. If `FALSE` (default), asks for confirmation in
+#'   interactive sessions before modifying the file.
+#' @return The path to the modified `config.yml`, invisibly.
+#' @export
+#' @examples
+#' \dontrun{
+#' # Update server port in the data directory
+#' motis_configure_server(
+#'   "~/motis-project",
+#'   server = list(port = 8081)
+#' )
+#'
+#' # Increase routing limits
+#' motis_configure_server(
+#'   "~/motis-project/data",
+#'   limits = list(plan_max_results = 500)
+#' )
+#' }
+motis_configure_server <- function(path, ..., force = FALSE) {
+  config_path <- .resolve_config_path(path, type = "server")
+  motis_set_config(config_path, ..., force = force)
+}
+
+#' Configure MOTIS Import Settings
+#'
+#' Updates the `config.yml` file in the root directory, which is used during
+#' the `motis_import()` process. This allows you to adjust how the data is
+#' preprocessed (e.g., matching distances, footpath lengths).
+#'
+#' @section Import Configuration Options:
+#'
+#' **Timetable Settings (`timetable`):**
+#' \itemize{
+#'   \item `first_day`: First day of timetable to load ("YYYY-MM-DD" or "TODAY").
+#'   \item `num_days`: Number of days to load (default: 365).
+#'   \item `railviz`: Enable real-time vehicle visualization (default: true).
+#'   \item `with_shapes`: Extract and serve shapes (default: true).
+#'   \item `adjust_footpaths`: Adjust footpaths if they are too fast (default: true).
+#'   \item `link_stop_distance`: Max distance in meters to link stops (default: 100).
+#'   \item `max_footpath_length`: Max footpath length in minutes (default: 15).
+#'   \item `max_matching_distance`: Max distance from geolocation to OSM ways (default: 25.0).
+#' }
+#'
+#' @param path A string. Path to the root MOTIS directory or the `config.yml` file.
+#' @param ... Named arguments for configuration.
+#' @param force A logical. If `FALSE` (default), asks for confirmation.
+#' @return The path to the modified `config.yml`, invisibly.
+#' @export
+motis_configure_import <- function(path, ..., force = FALSE) {
+  config_path <- .resolve_config_path(path, type = "import")
+  motis_set_config(config_path, ..., force = force)
+}
+
+#' Set MOTIS Configuration Options (Low Level)
+#'
+#' Directly updates a `config.yml` file. Use [motis_configure_server()] or
+#' [motis_configure_import()] for high-level directory-aware configuration.
+#'
+#' @param config_path A string. Path to the `config.yml` file to modify.
+#' @param ... Named arguments representing the configuration structure.
+#' @param force A logical.
+#' @return The path to the modified `config.yml`, invisibly.
+#' @noRd
+motis_set_config <- function(config_path, ..., force = FALSE) {
+  if (!requireNamespace("yaml", quietly = TRUE)) {
+    stop("'yaml' package is required.", call. = FALSE)
+  }
+  config_path <- normalizePath(config_path, mustWork = TRUE)
+
+  # --- User Confirmation ---
+  if (interactive() && !force) {
+    ans <- utils::askYesNo(
+      paste0(
+        "This will modify the existing file '",
+        basename(config_path),
+        "'. Proceed?"
+      ),
+      default = FALSE
+    )
+    if (!isTRUE(ans)) {
+      message("Modification aborted by user.")
+      return(invisible(NULL))
+    }
+  }
+
+  # --- Read, Modify, Write ---
+  config_list <- read_motis_config(config_path)
+  updates <- list(...)
+  
+  if (length(updates) > 0) {
+    config_list <- .deep_update(config_list, updates)
+  }
+
+  yaml::write_yaml(config_list, config_path)
+  message("  -> Updated '", basename(config_path), "' with new configuration.")
+  invisible(config_path)
+}
+
+#' Unlock MOTIS Server Limits
+#'
+#' Sets extremely high limits in the MOTIS configuration file to ensure that
+#' most queries (even very long or complex ones) are not capped by the server.
+#' This function automatically targets the server configuration (usually in
+#' the `data/` subdirectory).
+#'
+#' @param path Path to the `config.yml` file, the `data/` directory,
+#'   or the root MOTIS project directory.
+#' @param force A logical. If `TRUE`, skips user confirmation.
+#' @return The path to the modified `config.yml`, invisibly.
+#' @export
+motis_unlock_limits <- function(path, force = FALSE) {
+  config_path <- .resolve_config_path(path, type = "server")
+  
+  limits <- list(
+    stoptimes_max_results = 1000L,
+    plan_max_results = 1000L,
+    plan_max_search_window_minutes = 21600L,
+    stops_max_results = 10000L,
+    onetoall_max_results = 1000000L,
+    onetoall_max_travel_minutes = 10000L,
+    routing_max_timeout_seconds = 300L,
+    gtfsrt_expose_max_trip_updates = 1000L,
+    street_routing_max_prepost_transit_seconds = 86400L,
+    street_routing_max_direct_seconds = 86400L
+  )
+  timetable <- list(
+    max_matching_distance = 1000,
+    max_footpath_length = 1000
+  )
+  motis_set_config(config_path, limits = limits, timetable = timetable, force = force)
+}
+
 
 #' Generate and Customize a MOTIS Configuration File
 #'
@@ -201,6 +379,8 @@ motis_set_server_address <- function(
 #' @param port An integer. The TCP port for the server.
 #' @param force A logical. If `TRUE`, an existing `config.yml` file in the
 #'   `work_dir` will be overwritten. Defaults to `FALSE`.
+#' @param unlock_limits A logical. If `TRUE` (default), sets very high server
+#'   limits to prevent query capping.
 #' @param echo_cmd A logical. If `TRUE`, prints the full command. Defaults to `FALSE`.
 #' @param echo A logical. If `TRUE`, streams process output. Defaults to `TRUE`.
 #' @param spinner A logical. If `TRUE`, shows a console spinner. Defaults to `TRUE`.
@@ -215,6 +395,7 @@ motis_config <- function(
   host = "127.0.0.1",
   port = 8080L,
   force = FALSE,
+  unlock_limits = TRUE,
   echo_cmd = FALSE,
   echo = TRUE,
   spinner = TRUE
@@ -288,6 +469,10 @@ motis_config <- function(
   # authorized the overwrite at this function's level.
   motis_set_server_address(config_file, host, port, force = TRUE)
 
+  if (isTRUE(unlock_limits)) {
+    motis_unlock_limits(config_file, force = TRUE)
+  }
+
   message("✅ `config.yml` generated and configured successfully.")
   invisible(config_file)
 }
@@ -350,6 +535,8 @@ motis_prepare_data <- function(
   motis_path = NULL,
   host = "127.0.0.1",
   port = 8080L,
+  force = FALSE,
+  unlock_limits = TRUE,
   echo_cmd = FALSE,
   echo = TRUE,
   spinner = TRUE
@@ -367,6 +554,8 @@ motis_prepare_data <- function(
     motis_path = motis_path,
     host = host,
     port = port,
+    force = force,
+    unlock_limits = unlock_limits,
     echo_cmd = echo_cmd,
     echo = echo,
     spinner = spinner
@@ -379,99 +568,4 @@ motis_prepare_data <- function(
     spinner = spinner
   )
   invisible(normalizePath(work_dir))
-}
-
-#' Start a MOTIS Server Process
-#'
-#' Launches the `motis server` command as a background process.
-#'
-#' @inheritParams motis_add_assets
-#' @param echo_cmd A logical. If `TRUE`, prints the full command. Defaults to `FALSE`.
-#' @return A `processx::process` object for the running server.
-#' @export
-motis_start_server <- function(
-  work_dir,
-  motis_path = NULL,
-  echo_cmd = FALSE
-) {
-  if (missing(work_dir)) {
-    stop("'work_dir' must be specified.", call. = FALSE)
-  }
-  if (!requireNamespace("processx", quietly = TRUE)) {
-    stop("'processx' is required.", call. = FALSE)
-  }
-
-  cmd <- resolve_motis_cmd(motis_path)
-  work_dir <- normalizePath(work_dir, mustWork = TRUE)
-  data_dir <- file.path(work_dir, "data")
-  config_in_data <- file.path(data_dir, "config.yml")
-
-  if (!dir.exists(data_dir) || !file.exists(config_in_data)) {
-    stop(
-      "`data/config.yml` not found. Please run `motis_import()` first.",
-      call. = FALSE
-    )
-  }
-
-  # Read host/port from the config file in the data directory
-  config <- read_motis_config(config_in_data)
-  host <- config$server$host %||% "127.0.0.1"
-  port <- config$server$port %||% 8080L
-
-  if (isTRUE(echo_cmd)) {
-    message("Running command in '", work_dir, "':")
-    message(cmd, " server --data ", shQuote(data_dir))
-  }
-
-  server_process <- processx::process$new(
-    command = cmd,
-    args = c("server", paste0("--data=", data_dir)),
-    wd = work_dir,
-    stdout = "|",
-    stderr = "|"
-  )
-
-  Sys.sleep(2) # Give it a moment to initialize
-  if (!server_process$is_alive()) {
-    stop(
-      "MOTIS server failed to start. Check logs:\n",
-      "STDOUT: ",
-      paste(server_process$read_output_lines(), collapse = "\n"),
-      "\n",
-      "STDERR: ",
-      paste(server_process$read_error_lines(), collapse = "\n"),
-      call. = FALSE
-    )
-  }
-
-  message(
-    "✅ MOTIS server started on http://",
-    host,
-    ":",
-    port,
-    " (PID: ",
-    server_process$get_pid(),
-    ")"
-  )
-  return(server_process)
-}
-
-#' Stop a MOTIS Server Process
-#'
-#' @description Terminates a server process from `motis_start_server()`.
-#' @param server A `processx::process` object from `motis_start_server()`.
-#' @return Invisibly returns the (now stopped) `processx::process` object.
-#' @export
-motis_stop_server <- function(server) {
-  if (!inherits(server, "process")) {
-    stop("'server' must be a processx::process object.", call. = FALSE)
-  }
-  if (server$is_alive()) {
-    pid <- server$get_pid()
-    server$kill()
-    message("✅ MOTIS server (PID: ", pid, ") has been stopped.")
-  } else {
-    message("ℹ MOTIS server was not running.")
-  }
-  invisible(server)
 }
