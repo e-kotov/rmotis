@@ -128,6 +128,110 @@ motis_one_to_many <- function(
   dplyr::bind_rows(res_list)
 }
 
+#' Generate MOTIS Batch Query File for One-to-Many
+#'
+#' Efficiently constructs a text file of MOTIS one-to-many street routing
+#' queries for batch processing.
+#'
+#' @param one The single origin (when `arrive_by = FALSE`) or destination
+#'   (when `arrive_by = TRUE`).
+#' @param many The multiple destinations (when `arrive_by = FALSE`) or origins
+#'   (when `arrive_by = TRUE`).
+#' @param output_file The path to the output text file.
+#' @param mode The routing profile to use (WALK, BIKE, CAR).
+#' @param arrive_by Logical. If `FALSE` (the default), calculates routes from
+#'   `one` to `many`. If `TRUE`, calculates routes from `many` to `one`.
+#' @param max maximum travel time in seconds
+#' @param maxMatchingDistance maximum matching distance in meters
+#' @param ... Additional MOTIS API parameters.
+#' @param append Logical. If `TRUE`, appends to `output_file`.
+#' @param api_endpoint The API path. Defaults to `"/api/v1/one-to-many"`.
+#'
+#' @return Invisibly returns the number of queries written (always 1 for this endpoint, but vectorized over many).
+#' @export
+motis_one_to_many_generate_batch <- function(
+  one,
+  many,
+  output_file,
+  mode = c("WALK", "BIKE", "CAR"),
+  arrive_by = FALSE,
+  max = 7200,
+  maxMatchingDistance = 1000,
+  ...,
+  append = FALSE,
+  api_endpoint = "/api/v1/one-to-many"
+) {
+  if (missing(output_file) || !is.character(output_file) || length(output_file) != 1) {
+    stop("`output_file` must be a single string specifying the file path.", call. = FALSE)
+  }
+
+  mode <- match.arg(mode)
+  dots <- .collapse_dots(list(...))
+  
+  one_place <- .format_place_onemany(one)
+  if (length(one_place) != 1) stop("'one' must be a single location", call. = FALSE)
+  
+  many_places_vec <- .format_place_onemany(many)
+  many_places_str <- paste(many_places_vec, collapse = ",")
+
+  # Validation via motis.client
+  tryCatch({
+    .validate_batch_params(dots)
+    do.call(motis.client::mc_oneToMany, c(
+      list(
+        one = one_place,
+        many = many_places_str,
+        mode = mode,
+        arriveBy = arrive_by,
+        max = max,
+        maxMatchingDistance = maxMatchingDistance,
+        .build_only = TRUE,
+        .server = "http://localhost:8080"
+      ),
+      dots
+    ))
+  }, error = function(e) {
+    stop("Invalid MOTIS API parameters: ", e$message, call. = FALSE)
+  })
+
+  static_params <- c(
+    list(
+      one = one_place,
+      many = many_places_str,
+      mode = mode,
+      arriveBy = arrive_by,
+      max = max,
+      maxMatchingDistance = maxMatchingDistance
+    ),
+    dots
+  )
+  
+  # For one-to-many, we usually generate ONE line that contains ALL 'many' locations
+  # unless we wanted to split it, but the endpoint supports many-at-once.
+  # So we build the query string.
+  
+  query_str <- paste0(
+    api_endpoint,
+    "?",
+    paste0(
+      vapply(names(static_params), curl::curl_escape, character(1)),
+      "=",
+      vapply(static_params, function(v) {
+        if (is.logical(v)) return(tolower(as.character(v)))
+        curl::curl_escape(as.character(v))
+      }, character(1)),
+      collapse = "&"
+    )
+  )
+
+  con <- file(output_file, open = if (isTRUE(append)) "a" else "w")
+  on.exit(close(con))
+  writeLines(query_str, con = con)
+
+  message("Successfully wrote one-to-many batch query to '", output_file, "'.")
+  invisible(1L)
+}
+
 
 #' Internal helper to format location inputs for the one-to-many endpoint
 #' This endpoint requires "latitude;longitude" format.
