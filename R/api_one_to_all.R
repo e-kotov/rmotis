@@ -46,8 +46,7 @@ motis_one_to_all <- function(
 
   # --- 2. Format Inputs ---
   one_place <- .format_place(one)
-  time_str <- unname(format(time, "%Y-%m-%dT%H:%M:%S", tz = "UTC"))
-  if (!grepl("Z$", time_str)) time_str <- paste0(time_str, "Z")
+  time_str <- .format_time_utc(time)
 
   # --- 3. Build Request ---
   dots <- list(...)
@@ -125,4 +124,100 @@ motis_one_to_all <- function(
   })
   
   dplyr::bind_rows(res_list)
+}
+
+#' Generate MOTIS Batch Query File for One-to-All
+#'
+#' Efficiently constructs a text file of MOTIS one-to-all queries for batch
+#' processing.
+#'
+#' @param one The origin location (when `arrive_by = FALSE`) or destination
+#'   (when `arrive_by = TRUE`).
+#' @param output_file The path to the output text file.
+#' @param time The departure or arrival time. Defaults to `Sys.time()`.
+#' @param max_travel_time Integer. The maximum travel time in minutes. Defaults to 90.
+#' @param arrive_by Logical. If `FALSE` (the default), calculates routes from
+#'   `one` to all reachable stops. If `TRUE`, calculates routes from all
+#'   reachable stops to `one`.
+#' @param ... Additional MOTIS API parameters.
+#' @param append Logical. If `TRUE`, appends to `output_file`.
+#' @param api_endpoint The API path. Defaults to `"/api/v1/one-to-all"`.
+#'
+#' @return Invisibly returns the number of queries written.
+#' @export
+motis_one_to_all_generate_batch <- function(
+  one,
+  output_file,
+  time = Sys.time(),
+  max_travel_time = 90,
+  arrive_by = FALSE,
+  ...,
+  append = FALSE,
+  api_endpoint = "/api/v1/one-to-all"
+) {
+  if (missing(output_file) || !is.character(output_file) || length(output_file) != 1) {
+    stop("`output_file` must be a single string specifying the file path.", call. = FALSE)
+  }
+
+  dots <- .collapse_dots(list(...))
+  
+  one_place <- .format_place(one)
+  
+  time_vec <- .format_time_utc(time)
+
+  # Validation via motis.client
+  tryCatch({
+    .validate_batch_params(dots)
+    do.call(motis.client::mc_oneToAll, c(
+      list(
+        one = one_place[1],
+        time = time_vec[1],
+        maxTravelTime = max_travel_time,
+        arriveBy = arrive_by,
+        .build_only = TRUE,
+        .server = "http://localhost:8080"
+      ),
+      dots
+    ))
+  }, error = function(e) {
+    stop("Invalid MOTIS API parameters: ", e$message, call. = FALSE)
+  })
+
+  # For one-to-all, we might have multiple 'one' locations if we wanted to 
+  # vectorize over them, similar to motis_plan_generate_batch.
+  # Let's support multiple 'one' and 'time' inputs.
+
+  n_queries <- max(length(one_place), length(time_vec))
+  if (length(one_place) == 1) one_place <- rep(one_place, n_queries)
+  if (length(time_vec) == 1) time_vec <- rep(time_vec, n_queries)
+
+  if (length(one_place) != n_queries || length(time_vec) != n_queries) {
+    stop("'one' and 'time' must have compatible lengths.", call. = FALSE)
+  }
+
+  static_params <- c(
+    list(
+      maxTravelTime = max_travel_time,
+      arriveBy = arrive_by
+    ),
+    dots
+  )
+  static_suffix <- .build_static_suffix(static_params)
+
+  # Vectorised generation
+  one_enc <- curl::curl_escape(one_place)
+
+  lines <- paste0(
+    api_endpoint,
+    "?one=", one_enc,
+    "&time=", time_vec,
+    static_suffix
+  )
+
+  con <- file(output_file, open = if (isTRUE(append)) "a" else "w")
+  on.exit(close(con))
+  writeLines(lines, con = con)
+
+  message("Successfully wrote ", n_queries, " query(ies) to '", output_file, "'.")
+  invisible(n_queries)
 }
