@@ -13,6 +13,7 @@ License: MIT + file LICENSE
 URL: https://github.com/e-kotov/rmotis, https://www.ekotov.pro/rmotis/
 BugReports: https://github.com/e-kotov/rmotis/issues
 Imports: 
+    curl,
     dplyr,
     glue,
     googlePolylines (>= 0.8.8),
@@ -20,7 +21,10 @@ Imports:
     motis.client,
     purrr,
     ps,
-    RcppSimdJson
+    RcppSimdJson,
+    rlang,
+    tidyr,
+    yaml
 Suggests: 
     DT,
     mapgl,
