@@ -13,3 +13,6 @@
 ^README\.qmd$
 ^.*\.DS_Store$
 ^conductor$
+^local-testing$
+^private$
+^conductor$
