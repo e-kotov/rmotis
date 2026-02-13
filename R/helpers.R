@@ -384,8 +384,8 @@ debug_msg <- function(...) {
     }
     id_col_lower <- tolower(id_col)
     if (id_col_lower %in% p_names) {
-      id_col_idx <- which(p_names == id_col_lower)
-      return(unname(as.character(place[[id_col_idx]])))
+      id_col_idx <- function(x) which(p_names == id_col_lower)
+      return(unname(as.character(place[[id_col_idx(p_names)]])))
     }
     stop("Data frame must contain coordinate columns ('lat', 'lon') or an '", id_col, "' column.", call. = FALSE)
   }
@@ -497,5 +497,54 @@ debug_msg <- function(...) {
     
     stop("Could not identify a MOTIS root (import) directory at: ", path,
          "\nA root directory should contain exactly one .osm.pbf file and 'config.yml'.", call. = FALSE)
+  }
+}
+
+# --- Batch Query Generation Helpers ---
+
+#' Internal helper to build URL parameters string from a list
+#' @param params List of parameters
+#' @return String starting with '&'
+#' @noRd
+.build_static_suffix <- function(params) {
+  params <- Filter(Negate(is.null), params)
+  if (length(params) == 0) return("")
+
+  keys <- names(params)
+  # Vectorised processing of values
+  vals <- vapply(params, function(v) {
+    if (is.logical(v)) return(tolower(as.character(v)))
+    if (length(v) > 1) return(paste(v, collapse = ","))
+    as.character(v)
+  }, character(1))
+
+  paste0("&", paste(curl::curl_escape(keys), curl::curl_escape(vals), sep = "=", collapse = "&"))
+}
+
+#' Internal helper to strictly validate key parameter types
+#' @param params List of parameters to check
+#' @noRd
+.validate_batch_params <- function(params) {
+  # Direct check for known boolean parameters
+  bool_params <- c(
+    "arriveBy", "wheelchair", "detailedTransfers", "useRoutedTransfers", 
+    "requireBikeTransport", "requireCarTransport", "withFares", 
+    "withScheduledSkippedStops", "slowDirect"
+  )
+  for (p in bool_params) {
+    if (!is.null(params[[p]]) && !is.logical(params[[p]])) {
+      stop("Parameter '", p, "' must be logical (TRUE/FALSE), not ", typeof(params[[p]]), ".", call. = FALSE)
+    }
+  }
+
+  # Direct check for known integer/numeric parameters
+  int_params <- c(
+    "maxTransfers", "maxTravelTime", "minTransferTime", "additionalTransferTime",
+    "maxMatchingDistance", "passengers", "numItineraries", "maxItineraries"
+  )
+  for (p in int_params) {
+    if (!is.null(params[[p]]) && !is.numeric(params[[p]])) {
+      stop("Parameter '", p, "' must be numeric/integer, not ", typeof(params[[p]]), ".", call. = FALSE)
+    }
   }
 }
