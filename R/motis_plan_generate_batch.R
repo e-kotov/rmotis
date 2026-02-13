@@ -58,17 +58,7 @@ motis_plan_generate_batch <- function(
     stop("`output_file` must be a single string specifying the file path.", call. = FALSE)
   }
 
-  # Match logic from api_plan.R: collapse vector arguments in ... to comma-separated strings
-  dots <- list(...)
-  dots <- lapply(dots, function(x) {
-    if (length(x) > 1 && is.atomic(x)) {
-      paste(unname(x), collapse = ",")
-    } else if (is.atomic(x)) {
-      unname(x)
-    } else {
-      x
-    }
-  })
+  dots <- .collapse_dots(list(...))
 
   from_place <- .format_place(from, id_col = from_id_col)
   to_place <- .format_place(to, id_col = to_id_col)
@@ -84,7 +74,7 @@ motis_plan_generate_batch <- function(
       list(
         fromPlace = from_place[1],
         toPlace = to_place[1],
-        time = format(as.POSIXct(time[1]), "%Y-%m-%dT%H:%M:%S", tz = "UTC"),
+        time = .format_time_utc(time[1]),
         arriveBy = arrive_by,
         .build_only = TRUE,
         .server = "http://localhost:8080" # Dummy server for building
@@ -114,20 +104,13 @@ motis_plan_generate_batch <- function(
 
   n_queries <- length(from_vec)
 
-  # --- 2. Format Time ---
-  # Vectorise time formatting
-  format_t <- function(t) {
-    fmt <- format(as.POSIXct(t), "%Y-%m-%dT%H:%M:%S", tz = "UTC")
-    paste0(fmt, "Z")
-  }
-
   if (length(time) == 1) {
-    time_vec <- format_t(time)
+    time_vec <- .format_time_utc(time)
   } else {
     if (length(time) != n_queries) {
       stop("`time` vector length must match number of queries (", n_queries, ").", call. = FALSE)
     }
-    time_vec <- format_t(time)
+    time_vec <- .format_time_utc(time)
   }
 
   # --- 3. Build Static Suffix ---

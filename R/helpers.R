@@ -402,6 +402,31 @@ debug_msg <- function(...) {
   stop("Unsupported input type.", call. = FALSE)
 }
 
+#' Internal helper to collapse vector arguments in dots to comma-separated strings
+#' @param dots List of arguments
+#' @return Modified list of arguments
+#' @noRd
+.collapse_dots <- function(dots) {
+  lapply(dots, function(x) {
+    if (length(x) > 1 && is.atomic(x)) {
+      paste(unname(x), collapse = ",")
+    } else if (is.atomic(x)) {
+      unname(x)
+    } else {
+      x
+    }
+  })
+}
+
+#' Internal helper to format time as ISO 8601 UTC string (with Z)
+#' @param time POSIXct or character
+#' @return Character vector in format %Y-%m-%dT%H:%M:%SZ
+#' @noRd
+.format_time_utc <- function(time) {
+  fmt <- format(as.POSIXct(time), "%Y-%m-%dT%H:%M:%S", tz = "UTC")
+  paste0(fmt, "Z")
+}
+
 # Recursive list update helper
 .deep_update <- function(base, updates) {
   if (!is.list(updates)) return(updates)
