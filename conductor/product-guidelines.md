@@ -20,4 +20,5 @@
 
 ## Quality Standards
 - **Testing:** Aim for high test coverage (>80%). Use `testthat` for unit tests and integration tests with a local MOTIS instance.
+- **Manual Verification:** For phase completions or complex features, provide a pre-filled R script in the `private/` directory to facilitate interactive testing in the IDE.
 - **Documentation:** Use `roxygen2` for all function documentation. Ensure `NAMESPACE` is automatically managed.

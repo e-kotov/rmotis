@@ -12,3 +12,4 @@
 ^GEMINI\.md$
 ^README\.qmd$
 ^.*\.DS_Store$
+^conductor$

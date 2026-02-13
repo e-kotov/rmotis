@@ -7,7 +7,7 @@
     - [x] Write Tests (Red Phase)
     - [x] Implement Function (Green Phase)
     - [x] Verify Coverage
-- [ ] Task: Conductor - User Manual Verification 'Infrastructure & One-to-Many' (Protocol in workflow.md)
+- [~] Task: Conductor - User Manual Verification 'Infrastructure & One-to-Many' (Protocol in workflow.md)
 
 ## Phase 2: One-to-All
 
