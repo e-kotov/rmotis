@@ -2,7 +2,7 @@
 
 ## Phase 1: Infrastructure & One-to-Many
 
-- [ ] Task: Refactor shared batch helpers from `motis_plan_generate_batch.R` to `helpers.R`
+- [x] Task: Refactor shared batch helpers from `motis_plan_generate_batch.R` to `helpers.R` 807c756
 - [ ] Task: Implement `motis_one_to_many_generate_batch`
     - [ ] Write Tests (Red Phase)
     - [ ] Implement Function (Green Phase)
