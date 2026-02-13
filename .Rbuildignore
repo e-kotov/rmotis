@@ -7,3 +7,4 @@
 ^codecov\.yml$
 ^private$
 ^bin$
+^local-testing$
