@@ -95,6 +95,12 @@ Accessibility profile to use for pedestrian routing in transfers
 between transit connections, on the first mile, and last mile.
 
 Allowed values: FOOT, WHEELCHAIR.}
+    \item{\code{pedestrianSpeed}}{Optional
+
+Average speed for pedestrian routing.}
+    \item{\code{cyclingSpeed}}{Optional
+
+Average speed for bike routing.}
     \item{\code{elevationCosts}}{Optional. Default is \code{NONE}.
 
 Set an elevation cost profile, to penalize routes with incline.
@@ -134,9 +140,9 @@ Legs that do not require a transfer (stay-seated transfer) are marked with \code
 }}
     \item{\code{transitModes}}{Optional. Default is \code{TRANSIT} which allows all transit modes (no restriction).
 Allowed modes for the transit part. If empty, no transit connections will be computed.
-For example, this can be used to allow only \verb{METRO,SUBWAY,TRAM}.
+For example, this can be used to allow only \verb{SUBURBAN,SUBWAY,TRAM}.
 
-Allowed values: WALK, BIKE, RENTAL, CAR, CAR_PARKING, CAR_DROPOFF, ODM, FLEX, TRANSIT, TRAM, SUBWAY, FERRY, AIRPLANE, METRO, BUS, COACH, RAIL, HIGHSPEED_RAIL, LONG_DISTANCE, NIGHT_RAIL, REGIONAL_FAST_RAIL, REGIONAL_RAIL, CABLE_CAR, FUNICULAR, AREAL_LIFT, OTHER.}
+Allowed values: WALK, BIKE, RENTAL, CAR, CAR_PARKING, CAR_DROPOFF, ODM, RIDE_SHARING, FLEX, TRANSIT, TRAM, SUBWAY, FERRY, AIRPLANE, BUS, COACH, RAIL, HIGHSPEED_RAIL, LONG_DISTANCE, NIGHT_RAIL, REGIONAL_FAST_RAIL, REGIONAL_RAIL, SUBURBAN, FUNICULAR, AERIAL_LIFT, OTHER, AREAL_LIFT, METRO, CABLE_CAR.}
     \item{\code{directModes}}{Optional. Default is \code{WALK} which will compute walking routes as direct connections.
 
 Modes used for direction connections from start to destination without using transit.
@@ -152,17 +158,17 @@ Note: the output \code{direct} array will stay empty if the input param \code{ma
 
 Only non-transit modes such as \code{WALK}, \code{BIKE}, \code{CAR}, \code{BIKE_SHARING}, etc. can be used.
 
-Allowed values: WALK, BIKE, RENTAL, CAR, CAR_PARKING, CAR_DROPOFF, ODM, FLEX, TRANSIT, TRAM, SUBWAY, FERRY, AIRPLANE, METRO, BUS, COACH, RAIL, HIGHSPEED_RAIL, LONG_DISTANCE, NIGHT_RAIL, REGIONAL_FAST_RAIL, REGIONAL_RAIL, CABLE_CAR, FUNICULAR, AREAL_LIFT, OTHER.}
+Allowed values: WALK, BIKE, RENTAL, CAR, CAR_PARKING, CAR_DROPOFF, ODM, RIDE_SHARING, FLEX, TRANSIT, TRAM, SUBWAY, FERRY, AIRPLANE, BUS, COACH, RAIL, HIGHSPEED_RAIL, LONG_DISTANCE, NIGHT_RAIL, REGIONAL_FAST_RAIL, REGIONAL_RAIL, SUBURBAN, FUNICULAR, AERIAL_LIFT, OTHER, AREAL_LIFT, METRO, CABLE_CAR.}
     \item{\code{preTransitModes}}{Optional. Default is \code{WALK}. Only applies if the \code{from} place is a coordinate (not a transit stop). Does not apply to direct connections (see \code{directModes}).
 
 A list of modes that are allowed to be used from the \code{from} coordinate to the first transit stop. Example: \verb{WALK,BIKE_SHARING}.
 
-Allowed values: WALK, BIKE, RENTAL, CAR, CAR_PARKING, CAR_DROPOFF, ODM, FLEX, TRANSIT, TRAM, SUBWAY, FERRY, AIRPLANE, METRO, BUS, COACH, RAIL, HIGHSPEED_RAIL, LONG_DISTANCE, NIGHT_RAIL, REGIONAL_FAST_RAIL, REGIONAL_RAIL, CABLE_CAR, FUNICULAR, AREAL_LIFT, OTHER.}
+Allowed values: WALK, BIKE, RENTAL, CAR, CAR_PARKING, CAR_DROPOFF, ODM, RIDE_SHARING, FLEX, TRANSIT, TRAM, SUBWAY, FERRY, AIRPLANE, BUS, COACH, RAIL, HIGHSPEED_RAIL, LONG_DISTANCE, NIGHT_RAIL, REGIONAL_FAST_RAIL, REGIONAL_RAIL, SUBURBAN, FUNICULAR, AERIAL_LIFT, OTHER, AREAL_LIFT, METRO, CABLE_CAR.}
     \item{\code{postTransitModes}}{Optional. Default is \code{WALK}. Only applies if the \code{to} place is a coordinate (not a transit stop). Does not apply to direct connections (see \code{directModes}).
 
 A list of modes that are allowed to be used from the last transit stop to the \code{to} coordinate. Example: \verb{WALK,BIKE_SHARING}.
 
-Allowed values: WALK, BIKE, RENTAL, CAR, CAR_PARKING, CAR_DROPOFF, ODM, FLEX, TRANSIT, TRAM, SUBWAY, FERRY, AIRPLANE, METRO, BUS, COACH, RAIL, HIGHSPEED_RAIL, LONG_DISTANCE, NIGHT_RAIL, REGIONAL_FAST_RAIL, REGIONAL_RAIL, CABLE_CAR, FUNICULAR, AREAL_LIFT, OTHER.}
+Allowed values: WALK, BIKE, RENTAL, CAR, CAR_PARKING, CAR_DROPOFF, ODM, RIDE_SHARING, FLEX, TRANSIT, TRAM, SUBWAY, FERRY, AIRPLANE, BUS, COACH, RAIL, HIGHSPEED_RAIL, LONG_DISTANCE, NIGHT_RAIL, REGIONAL_FAST_RAIL, REGIONAL_RAIL, SUBURBAN, FUNICULAR, AERIAL_LIFT, OTHER, AREAL_LIFT, METRO, CABLE_CAR.}
     \item{\code{directRentalFormFactors}}{Experimental. Expect unannounced breaking changes (without version bumps).
 
 Optional. Only applies to direct connections.
@@ -223,17 +229,35 @@ Optional. Only applies to direct connections.
 
 A list of rental providers that are allowed to be used for direct connections.
 If empty (the default), all providers are allowed.}
+    \item{\code{directRentalProviderGroups}}{Experimental. Expect unannounced breaking changes (without version bumps).
+
+Optional. Only applies to direct connections.
+
+A list of rental provider groups that are allowed to be used for direct connections.
+If empty (the default), all providers are allowed.}
     \item{\code{preTransitRentalProviders}}{Experimental. Expect unannounced breaking changes (without version bumps).
 
 Optional. Only applies if the \code{from} place is a coordinate (not a transit stop). Does not apply to direct connections (see \code{directRentalProviders}).
 
 A list of rental providers that are allowed to be used from the \code{from} coordinate to the first transit stop.
 If empty (the default), all providers are allowed.}
+    \item{\code{preTransitRentalProviderGroups}}{Experimental. Expect unannounced breaking changes (without version bumps).
+
+Optional. Only applies if the \code{from} place is a coordinate (not a transit stop). Does not apply to direct connections (see \code{directRentalProviderGroups}).
+
+A list of rental provider groups that are allowed to be used from the \code{from} coordinate to the first transit stop.
+If empty (the default), all providers are allowed.}
     \item{\code{postTransitRentalProviders}}{Experimental. Expect unannounced breaking changes (without version bumps).
 
 Optional. Only applies if the \code{to} place is a coordinate (not a transit stop). Does not apply to direct connections (see \code{directRentalProviders}).
 
 A list of rental providers that are allowed to be used from the last transit stop to the \code{to} coordinate.
+If empty (the default), all providers are allowed.}
+    \item{\code{postTransitRentalProviderGroups}}{Experimental. Expect unannounced breaking changes (without version bumps).
+
+Optional. Only applies if the \code{to} place is a coordinate (not a transit stop). Does not apply to direct connections (see \code{directRentalProviderGroups}).
+
+A list of rental provider groups that are allowed to be used from the last transit stop to the \code{to} coordinate.
 If empty (the default), all providers are allowed.}
     \item{\code{ignoreDirectRentalReturnConstraints}}{Experimental. Expect unannounced breaking changes (without version bumps).
 
@@ -256,6 +280,19 @@ allowing the rental vehicle to be parked anywhere.}
     \item{\code{numItineraries}}{The minimum number of itineraries to compute.
 This is only relevant if \code{timetableView=true}.
 The default value is 5.}
+    \item{\code{maxItineraries}}{Optional. By default all computed itineraries will be returned
+
+The maximum number of itineraries to compute.
+This is only relevant if \code{timetableView=true}.
+
+Note: With the current implementation, setting this to a lower
+number will not result in any speedup.
+
+Note: The number of returned itineraries might be slightly higher
+than \code{maxItineraries} as there might be several itineraries with
+the same departure time but different number of transfers. In order
+to not miss any itineraries for paging, either none or all
+itineraries with the same departure time have to be returned.}
     \item{\code{pageCursor}}{Use the cursor to go to the next "page" of itineraries.
 Copy the cursor from the last response and keep the original request as is.
 This will enable you to search for itineraries in the next or previous time-window.}
@@ -280,9 +317,9 @@ compute the best journeys that depart after that time
 \item \code{arriveBy=true}: the time window around \code{date} and \code{time} refers to the arrival time window
 \item \code{arriveBy=false}: the time window around \code{date} and \code{time} refers to the departure time window
 }}
-    \item{\code{searchWindow}}{Optional. Default is 2 hours which is \code{7200}.
+    \item{\code{searchWindow}}{Optional. Default is 15 minutes which is \code{900}.
 
-The length of the search-window in seconds. Default value two hours.
+The length of the search-window in seconds. Default value 15 minutes.
 \itemize{
 \item \code{arriveBy=true}: number of seconds between the earliest departure time and latest departure time
 \item \code{arriveBy=false}: number of seconds between the earliest arrival time and the latest arrival time
@@ -294,11 +331,14 @@ If set to \code{true}, all used transit trips are required to allow bike carriag
 
 If set to \code{true}, all used transit trips are required to allow car carriage.}
     \item{\code{maxPreTransitTime}}{Optional. Default is 15min which is \code{900}.
-Maximum time in seconds for the first street leg.}
+Maximum time in seconds for the first street leg.
+Is limited by server config variable \code{street_routing_max_prepost_transit_seconds}.}
     \item{\code{maxPostTransitTime}}{Optional. Default is 15min which is \code{900}.
-Maximum time in seconds for the last street leg.}
+Maximum time in seconds for the last street leg.
+Is limited by server config variable \code{street_routing_max_prepost_transit_seconds}.}
     \item{\code{maxDirectTime}}{Optional. Default is 30min which is \code{1800}.
-Maximum time in seconds for direct connections.}
+Maximum time in seconds for direct connections.
+Is limited by server config variable \code{street_routing_max_direct_seconds}.}
     \item{\code{fastestDirectFactor}}{Optional. Experimental. Default is \code{1.0}.
 Factor with which the duration of the fastest direct non-public-transit connection is multiplied.
 Values > 1.0 allow transit connections that are slower than the fastest direct non-public-transit connection to be found.}
@@ -314,17 +354,21 @@ Values < 1.0 will return all slowDirect connections.}
     \item{\code{withScheduledSkippedStops}}{Optional. Include intermediate stops where passengers can not alight/board according to schedule.}
     \item{\code{language}}{language tags as used in OpenStreetMap / GTFS
 (usually BCP-47 / ISO 639-1, or ISO 639-2 if there's no ISO 639-1)}
-    \item{\code{.return_as}}{How to return the response. One of 'list' (default), 'string', or 'raw'.}
-    \item{\code{.json_parser}}{JSON parser when \code{.return_as = 'list'}. One of 'RcppSimdJson' (default) or 'jsonlite'.}
-    \item{\code{.headers}}{Named list of additional HTTP headers to include.}
-    \item{\code{.auth}}{Bearer token string or a function \code{function(req) req} to apply custom auth.}
-    \item{\code{.throttle_rate}}{Requests per second (numeric). If set, throttling is applied.}
-    \item{\code{.build_only}}{If TRUE, return the unperformed request object.}
-    \item{\code{.server}}{Override the server URL for this call.}
-    \item{\code{.referer}}{Optional Referer header value.}
-    \item{\code{.req_options}}{Named list of curl options passed to \code{httr2::req_options()}.}
-    \item{\code{.handle_response}}{Optional function \code{function(resp) ...} to post-process the response.}
-    \item{\code{.json_auto_unbox}}{If TRUE (default), auto-unbox scalar JSON values for request bodies.}
+    \item{\code{algorithm}}{algorithm to use
+
+Allowed values: RAPTOR, PONG, TB.}
+    \item{\code{.return_as}}{A string specifying the return format. Defaults to 'list'. Options are 'list' for a parsed R list, 'raw' for the raw httr2_response object, or 'string' for the raw JSON string.}
+    \item{\code{.json_parser}}{A string specifying which parser to use when .return_as = 'list'. Defaults to 'RcppSimdJson' (faster) or 'jsonlite'. Beware that their output may differ slightly.}
+    \item{\code{.headers}}{A named list of extra HTTP headers to add to the request. If no 'Accept' header is provided anywhere, 'Accept: \emph{/}' will be sent by default.}
+    \item{\code{.auth}}{An authentication token or method (e.g., a bearer token string).}
+    \item{\code{.throttle_rate}}{A number to pass to \code{httr2::req_throttle()} to limit the rate of requests. For example, \code{15/60} means 15 requests per minute. This overrides any default rate set at client generation time.}
+    \item{\code{.build_only}}{A logical. If TRUE, the function will build and return the httr2_request object without performing it. Defaults to FALSE.}
+    \item{\code{.server}}{A string to override the base URL for this specific request. If provided, it will be used instead of the default server URL.}
+    \item{\code{.referer}}{A string to set the Referer HTTP header.}
+    \item{\code{.req_options}}{A named list of curl options passed to \code{httr2::req_options()}. Useful for timeouts, proxies, SSL, etc.}
+    \item{\code{.handle_response}}{A function taking an \code{httr2_response} and returning a value. If supplied, it overrides \code{.return_as} / \code{.json_parser} handling. See helpers like \code{oa3_content_or_stop()}.}
+    \item{\code{.json_auto_unbox}}{Logical. If TRUE, JSON bodies are encoded with \code{auto_unbox = TRUE} (jsonlite). Defaults to FALSE unless overridden.}
+    \item{\code{.paginate}}{A logical, character string, or function to enable pagination. If TRUE (or "link_header"), uses Link headers. Other options: "page_param", "cursor_param", or a custom function. See \code{oa3_paginate()}.}
   }}
 
 \item{output}{The desired output format. One of:

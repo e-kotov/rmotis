@@ -19,17 +19,17 @@ motis_one_to_many(
 }
 \arguments{
 \item{one}{The single origin (when \code{arrive_by = FALSE}) or destination
-(when \code{arrive_by = TRUE}). Can be a character vector of an ID,
-a data frame/tibble with coordinate columns, an \code{sf} object with a
-single POINT geometry, or a numeric vector/matrix (\code{lon}, \code{lat}).}
+(when \code{arrive_by = TRUE}). Can be a data frame/tibble with coordinate
+columns, an \code{sf} object with a single POINT geometry, or a numeric
+vector/matrix (\code{lon}, \code{lat}).}
 
 \item{one_id_col}{The name of the column in \code{one} to use for identifying
 the point in the output. Defaults to \code{"id"}.}
 
 \item{many}{The multiple destinations (when \code{arrive_by = FALSE}) or origins
-(when \code{arrive_by = TRUE}). Can be a character vector of IDs, a data
-frame/tibble with ID or coordinate columns, an \code{sf} object with POINT
-geometry, or a numeric matrix (\code{lon}, \code{lat}).}
+(when \code{arrive_by = TRUE}). Can be a data frame/tibble with coordinate
+columns, an \code{sf} object with POINT geometry, or a numeric matrix
+(\code{lon}, \code{lat}).}
 
 \item{many_id_col}{The name of the column in \code{many} to use for identifying
 column, a sequence of numbers is used.}
@@ -66,17 +66,22 @@ Elevation cost profiles are currently used by following street modes:
 }
 
 Allowed values: NONE, LOW, HIGH.}
-    \item{\code{.return_as}}{How to return the response. One of 'list' (default), 'string', or 'raw'.}
-    \item{\code{.json_parser}}{JSON parser when \code{.return_as = 'list'}. One of 'RcppSimdJson' (default) or 'jsonlite'.}
-    \item{\code{.headers}}{Named list of additional HTTP headers to include.}
-    \item{\code{.auth}}{Bearer token string or a function \code{function(req) req} to apply custom auth.}
-    \item{\code{.throttle_rate}}{Requests per second (numeric). If set, throttling is applied.}
-    \item{\code{.build_only}}{If TRUE, return the unperformed request object.}
-    \item{\code{.server}}{Override the server URL for this call.}
-    \item{\code{.referer}}{Optional Referer header value.}
-    \item{\code{.req_options}}{Named list of curl options passed to \code{httr2::req_options()}.}
-    \item{\code{.handle_response}}{Optional function \code{function(resp) ...} to post-process the response.}
-    \item{\code{.json_auto_unbox}}{If TRUE (default), auto-unbox scalar JSON values for request bodies.}
+    \item{\code{distance}}{Optional. Default is \code{false}.
+If true, the response includes the distance in meters
+for each path. This requires path reconstruction and
+may be slower than duration-only queries.}
+    \item{\code{.return_as}}{A string specifying the return format. Defaults to 'list'. Options are 'list' for a parsed R list, 'raw' for the raw httr2_response object, or 'string' for the raw JSON string.}
+    \item{\code{.json_parser}}{A string specifying which parser to use when .return_as = 'list'. Defaults to 'RcppSimdJson' (faster) or 'jsonlite'. Beware that their output may differ slightly.}
+    \item{\code{.headers}}{A named list of extra HTTP headers to add to the request. If no 'Accept' header is provided anywhere, 'Accept: \emph{/}' will be sent by default.}
+    \item{\code{.auth}}{An authentication token or method (e.g., a bearer token string).}
+    \item{\code{.throttle_rate}}{A number to pass to \code{httr2::req_throttle()} to limit the rate of requests. For example, \code{15/60} means 15 requests per minute. This overrides any default rate set at client generation time.}
+    \item{\code{.build_only}}{A logical. If TRUE, the function will build and return the httr2_request object without performing it. Defaults to FALSE.}
+    \item{\code{.server}}{A string to override the base URL for this specific request. If provided, it will be used instead of the default server URL.}
+    \item{\code{.referer}}{A string to set the Referer HTTP header.}
+    \item{\code{.req_options}}{A named list of curl options passed to \code{httr2::req_options()}. Useful for timeouts, proxies, SSL, etc.}
+    \item{\code{.handle_response}}{A function taking an \code{httr2_response} and returning a value. If supplied, it overrides \code{.return_as} / \code{.json_parser} handling. See helpers like \code{oa3_content_or_stop()}.}
+    \item{\code{.json_auto_unbox}}{Logical. If TRUE, JSON bodies are encoded with \code{auto_unbox = TRUE} (jsonlite). Defaults to FALSE unless overridden.}
+    \item{\code{.paginate}}{A logical, character string, or function to enable pagination. If TRUE (or "link_header"), uses Link headers. Other options: "page_param", "cursor_param", or a custom function. See \code{oa3_paginate()}.}
   }}
 
 \item{output}{The desired output format. One of:
@@ -87,12 +92,21 @@ Allowed values: NONE, LOW, HIGH.}
 }
 \value{
 Depending on the \code{output} parameter, a \code{data.frame} or a list.
-The data frame will contain columns for the identifier of each point in \code{many},
-the \code{duration_seconds}, and the \code{distance_meters}.
+The data frame will contain columns:
+\itemize{
+\item \code{from_id}: identifier of the origin
+\item \code{to_id}: identifier of the destination
+\item \code{duration_s}: travel time in seconds
+\item \code{distance_m}: travel distance in meters (only included if \code{distance = TRUE} in \code{...})
+}
 }
 \description{
 This function is a user-friendly wrapper for the MOTIS \code{one-to-many} street
 routing API. It computes travel time and distance from a single origin to
 multiple destinations (or from multiple origins to a single destination)
 using a specified travel mode (e.g., walking, cycling, or driving).
+}
+\details{
+This function uses a \code{POST} request to the MOTIS server, allowing for a large
+number of destinations (1000+) without hitting URL length limitations.
 }

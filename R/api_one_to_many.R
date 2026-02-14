@@ -5,14 +5,17 @@
 #' multiple destinations (or from multiple origins to a single destination)
 #' using a specified travel mode (e.g., walking, cycling, or driving).
 #'
+#' This function uses a `POST` request to the MOTIS server, allowing for a large
+#' number of destinations (1000+) without hitting URL length limitations.
+#'
 #' @param one The single origin (when `arrive_by = FALSE`) or destination
-#'   (when `arrive_by = TRUE`). Can be a character vector of an ID,
-#'   a data frame/tibble with coordinate columns, an `sf` object with a
-#'   single POINT geometry, or a numeric vector/matrix (`lon`, `lat`).
+#'   (when `arrive_by = TRUE`). Can be a data frame/tibble with coordinate
+#'   columns, an `sf` object with a single POINT geometry, or a numeric
+#'   vector/matrix (`lon`, `lat`).
 #' @param many The multiple destinations (when `arrive_by = FALSE`) or origins
-#'   (when `arrive_by = TRUE`). Can be a character vector of IDs, a data
-#'   frame/tibble with ID or coordinate columns, an `sf` object with POINT
-#'   geometry, or a numeric matrix (`lon`, `lat`).
+#'   (when `arrive_by = TRUE`). Can be a data frame/tibble with coordinate
+#'   columns, an `sf` object with POINT geometry, or a numeric matrix
+#'   (`lon`, `lat`).
 #' @param many_id_col The name of the column in `many` to use for identifying
 #'   column, a sequence of numbers is used.
 #' @param one_id_col The name of the column in `one` to use for identifying
@@ -27,8 +30,11 @@
 #'   - `"raw_list"`: The raw parsed JSON response as a list.
 #' @inheritDotParams motis.client::mc_oneToMany -one -many -mode -arriveBy -max -maxMatchingDistance -.endpoint
 #' @return Depending on the `output` parameter, a `data.frame` or a list.
-#'   The data frame will contain columns for the identifier of each point in `many`,
-#'   the `duration_seconds`, and the `distance_meters`.
+#'   The data frame will contain columns:
+#'   - `from_id`: identifier of the origin
+#'   - `to_id`: identifier of the destination
+#'   - `duration_s`: travel time in seconds
+#'   - `distance_m`: travel distance in meters (only included if `distance = TRUE` in `...`)
 #' @export
 #' @importFrom httr2 req_perform resp_body_json
 #' @importFrom dplyr bind_rows
@@ -53,44 +59,40 @@ motis_one_to_many <- function(
   # --- 2. Format Inputs ---
   one_place <- .format_place_onemany(one)
   many_places_vec <- .format_place_onemany(many)
-  many_places_str <- paste(many_places_vec, collapse = ",")
 
-  # --- 3. Build Request ---
+  # --- 3. Build Request Body ---
   dots <- list(...)
   user_server <- dots[[".server"]]
   dots[c("one", "many", "many_id_col", "mode", "arrive_by", "output", ".server")] <- NULL
 
-  # Collapse any vector arguments in dots to comma-separated strings
-  dots <- lapply(dots, function(x) {
-    if (length(x) > 1 && is.atomic(x)) {
-      paste(unname(x), collapse = ",")
-    } else if (is.atomic(x)) {
-      unname(x)
-    } else {
-      x
-    }
-  })
-
-  api_args <- c(
-    list(
-      one = unname(one_place),
-      many = unname(many_places_str),
-      mode = unname(mode),
-      arriveBy = unname(arrive_by),
-      max = unname(max),
-      maxMatchingDistance = unname(maxMatchingDistance),
-      .server = unname(user_server %||% .get_server_url())
-    ),
-    dots
-  )
+  # Collapse any vector arguments in dots (though POST usually handles JSON lists better)
+  # But for consistency with MOTIS params, we follow the schema.
   
-  req <- tryCatch({
-    do.call(motis.client::mc_oneToMany, api_args)
-  }, error = function(e) {
-    stop("Failed to construct one-to-many request: ", e$message, call. = FALSE)
-  })
+  body_params <- list(
+    one = unname(one_place),
+    many = unname(many_places_vec),
+    mode = unname(mode),
+    arriveBy = unname(arrive_by),
+    max = unname(max),
+    maxMatchingDistance = unname(maxMatchingDistance),
+    elevationCosts = dots$elevationCosts %||% "NONE"
+  )
+  dots$elevationCosts <- NULL
+  
+  # Merge dots into body
+  if (length(dots) > 0) {
+    body_params <- utils::modifyList(body_params, dots)
+  }
 
-  # --- 4. Perform Request ---
+  server_url <- user_server %||% .get_server_url()
+  url <- paste0(sub("/$", "", server_url), "/api/v1/one-to-many")
+
+  # --- 4. Perform POST Request ---
+  req <- httr2::request(url) |>
+    httr2::req_method("POST") |>
+    httr2::req_body_json(body_params) |>
+    httr2::req_retry(max_tries = 3)
+
   resp <- tryCatch({
     httr2::req_perform(req)
   }, error = function(e) {
@@ -103,11 +105,15 @@ motis_one_to_many <- function(
   if (output == "raw_list") return(parsed_response)
 
   if (length(parsed_response) == 0) {
-    return(data.frame(
-      one_id = .get_ids(one, id_col = one_id_col),
-      many_id = .get_ids(many, id_col = many_id_col),
-      duration = numeric(0)
-    ))
+    empty_df <- data.frame(
+      from_id = character(0),
+      to_id = character(0),
+      duration_s = numeric(0)
+    )
+    if ("distance" %in% names(dots) && isTRUE(dots$distance)) {
+      empty_df$distance_m <- numeric(0)
+    }
+    return(empty_df)
   }
 
   one_id <- .get_ids(one, id_col = one_id_col)
@@ -117,11 +123,30 @@ motis_one_to_many <- function(
   res_list <- lapply(seq_along(parsed_response), function(i) {
     item <- parsed_response[[i]]
     if (length(item) == 0) {
-      return(data.frame(one_id = one_id, many_id = many_ids[i], duration = NA_real_))
+      df <- data.frame(one_id = one_id, many_id = many_ids[i], duration = NA_real_)
+    } else {
+      df <- as.data.frame(item)
+      df$one_id <- one_id
+      df$many_id <- many_ids[i]
     }
-    df <- as.data.frame(item)
-    df$one_id <- one_id
-    df$many_id <- many_ids[i]
+    
+    # Rename according to arrive_by
+    if (!arrive_by) {
+      names(df)[names(df) == "one_id"] <- "from_id"
+      names(df)[names(df) == "many_id"] <- "to_id"
+    } else {
+      names(df)[names(df) == "one_id"] <- "to_id"
+      names(df)[names(df) == "many_id"] <- "from_id"
+    }
+    
+    # Standardize duration and distance names
+    if ("duration" %in% names(df)) names(df)[names(df) == "duration"] <- "duration_s"
+    if ("distance" %in% names(df)) names(df)[names(df) == "distance"] <- "distance_m"
+    
+    # Reorder columns
+    cols <- c("from_id", "to_id", "duration_s", "distance_m")
+    df <- df[, intersect(cols, names(df)), drop = FALSE]
+    
     df
   })
 
@@ -242,24 +267,53 @@ motis_one_to_many_generate_batch <- function(
 .format_place_onemany <- function(place, id_col = "id") {
   if (inherits(place, "sf")) {
     rlang::check_installed("sf")
-    coords <- sf::st_coordinates(place)
+
+    # Verify geometry column exists and is valid, otherwise try to repair or fallback
+    # The error "attr(obj, "sf_column") does not point to a geometry column" suggests metadata mismatch.
+    
+    # st_coordinates returns matrix with X, Y
+    coords <- tryCatch({
+       sf::st_coordinates(place)
+    }, error = function(e) {
+       # If direct extraction fails (e.g. lost geometry attribute), try to cast via st_as_sf if possible?
+       # Attempt to repair by re-setting geometry if we can identify it
+       if (inherits(place, "sf")) {
+          # Use st_geometry to extract geometry directly if possible, or cast
+          geom_col <- attr(place, "sf_column")
+          if (!is.null(geom_col) && geom_col %in% names(place)) {
+             sf::st_geometry(place) <- geom_col
+             return(sf::st_coordinates(place))
+          }
+       }
+       stop("Failed to extract coordinates from sf object: ", e$message, call. = FALSE)
+    })
+    
+    if (nrow(coords) != nrow(place)) {
+       # Try to get centroids if we have more coordinates than features (implies complex geometry)
+       coords <- sf::st_coordinates(sf::st_centroid(place))
+    }
+    
     lat <- round(coords[, "Y"], 6); lon <- round(coords[, "X"], 6)
     return(paste(lat, lon, sep = ";"))
   }
 
   if (is.data.frame(place)) {
     p_names <- tolower(names(place))
+    lat_col <- which(p_names %in% c("lat", "latitude"))
+    lon_col <- which(p_names %in% c("lon", "lng", "longitude"))
+    
+    if (length(lat_col) == 1 && length(lon_col) == 1) {
+      return(paste(place[[lat_col]], place[[lon_col]], sep = ";"))
+    }
+    
+    # Fallback to ID if present, but for street routing coordinates are usually required
     id_col_lower <- tolower(id_col)
     if (id_col_lower %in% p_names) {
       id_col_idx <- which(p_names == id_col_lower)
       return(as.character(place[[id_col_idx]]))
     }
-    lat_col <- which(p_names %in% c("lat", "latitude"))
-    lon_col <- which(p_names %in% c("lon", "lng", "longitude"))
-    if (length(lat_col) == 1 && length(lon_col) == 1) {
-      return(paste(place[[lat_col]], place[[lon_col]], sep = ";"))
-    }
-    stop("Data frame must contain an '", id_col, "' column or coordinate columns.", call. = FALSE)
+    
+    stop("Data frame must contain coordinate columns ('lat', 'lon') or an '", id_col, "' column.", call. = FALSE)
   }
 
   if (is.matrix(place) && is.numeric(place)) {
@@ -271,6 +325,6 @@ motis_one_to_many_generate_batch <- function(
     return(paste(place[, 2], place[, 1], sep = ";"))
   }
 
-  if (is.character(place)) return(place)
+  if (is.character(place)) return(unname(place))
   stop("Unsupported input type.", call. = FALSE)
 }

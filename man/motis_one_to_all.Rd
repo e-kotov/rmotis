@@ -74,6 +74,12 @@ Accessibility profile to use for pedestrian routing in transfers
 between transit connections and the first and last mile respectively.
 
 Allowed values: FOOT, WHEELCHAIR.}
+    \item{\code{pedestrianSpeed}}{Optional
+
+Average speed for pedestrian routing.}
+    \item{\code{cyclingSpeed}}{Optional
+
+Average speed for bike routing.}
     \item{\code{elevationCosts}}{Optional. Default is \code{NONE}.
 
 Set an elevation cost profile, to penalize routes with incline.
@@ -98,9 +104,9 @@ Elevation cost profiles are currently used by following street modes:
 Allowed values: NONE, LOW, HIGH.}
     \item{\code{transitModes}}{Optional. Default is \code{TRANSIT} which allows all transit modes (no restriction).
 Allowed modes for the transit part. If empty, no transit connections will be computed.
-For example, this can be used to allow only \verb{METRO,SUBWAY,TRAM}.
+For example, this can be used to allow only \verb{SUBURBAN,SUBWAY,TRAM}.
 
-Allowed values: WALK, BIKE, RENTAL, CAR, CAR_PARKING, CAR_DROPOFF, ODM, FLEX, TRANSIT, TRAM, SUBWAY, FERRY, AIRPLANE, METRO, BUS, COACH, RAIL, HIGHSPEED_RAIL, LONG_DISTANCE, NIGHT_RAIL, REGIONAL_FAST_RAIL, REGIONAL_RAIL, CABLE_CAR, FUNICULAR, AREAL_LIFT, OTHER.}
+Allowed values: WALK, BIKE, RENTAL, CAR, CAR_PARKING, CAR_DROPOFF, ODM, RIDE_SHARING, FLEX, TRANSIT, TRAM, SUBWAY, FERRY, AIRPLANE, BUS, COACH, RAIL, HIGHSPEED_RAIL, LONG_DISTANCE, NIGHT_RAIL, REGIONAL_FAST_RAIL, REGIONAL_RAIL, SUBURBAN, FUNICULAR, AERIAL_LIFT, OTHER, AREAL_LIFT, METRO, CABLE_CAR.}
     \item{\code{preTransitModes}}{Optional. Default is \code{WALK}. The behavior depends on whether \code{arriveBy} is set:
 \itemize{
 \item \code{arriveBy=true}: Currently not used
@@ -109,7 +115,7 @@ Allowed values: WALK, BIKE, RENTAL, CAR, CAR_PARKING, CAR_DROPOFF, ODM, FLEX, TR
 
 A list of modes that are allowed to be used from the last transit stop to the \code{to} coordinate. Example: \verb{WALK,BIKE_SHARING}.
 
-Allowed values: WALK, BIKE, RENTAL, CAR, CAR_PARKING, CAR_DROPOFF, ODM, FLEX, TRANSIT, TRAM, SUBWAY, FERRY, AIRPLANE, METRO, BUS, COACH, RAIL, HIGHSPEED_RAIL, LONG_DISTANCE, NIGHT_RAIL, REGIONAL_FAST_RAIL, REGIONAL_RAIL, CABLE_CAR, FUNICULAR, AREAL_LIFT, OTHER.}
+Allowed values: WALK, BIKE, RENTAL, CAR, CAR_PARKING, CAR_DROPOFF, ODM, RIDE_SHARING, FLEX, TRANSIT, TRAM, SUBWAY, FERRY, AIRPLANE, BUS, COACH, RAIL, HIGHSPEED_RAIL, LONG_DISTANCE, NIGHT_RAIL, REGIONAL_FAST_RAIL, REGIONAL_RAIL, SUBURBAN, FUNICULAR, AERIAL_LIFT, OTHER, AREAL_LIFT, METRO, CABLE_CAR.}
     \item{\code{postTransitModes}}{Optional. Default is \code{WALK}. The behavior depends on whether \code{arriveBy} is set:
 \itemize{
 \item \code{arriveBy=true}: Only applies if the \code{one} place is a coordinate (not a transit stop).
@@ -118,7 +124,7 @@ Allowed values: WALK, BIKE, RENTAL, CAR, CAR_PARKING, CAR_DROPOFF, ODM, FLEX, TR
 
 A list of modes that are allowed to be used from the last transit stop to the \code{to} coordinate. Example: \verb{WALK,BIKE_SHARING}.
 
-Allowed values: WALK, BIKE, RENTAL, CAR, CAR_PARKING, CAR_DROPOFF, ODM, FLEX, TRANSIT, TRAM, SUBWAY, FERRY, AIRPLANE, METRO, BUS, COACH, RAIL, HIGHSPEED_RAIL, LONG_DISTANCE, NIGHT_RAIL, REGIONAL_FAST_RAIL, REGIONAL_RAIL, CABLE_CAR, FUNICULAR, AREAL_LIFT, OTHER.}
+Allowed values: WALK, BIKE, RENTAL, CAR, CAR_PARKING, CAR_DROPOFF, ODM, RIDE_SHARING, FLEX, TRANSIT, TRAM, SUBWAY, FERRY, AIRPLANE, BUS, COACH, RAIL, HIGHSPEED_RAIL, LONG_DISTANCE, NIGHT_RAIL, REGIONAL_FAST_RAIL, REGIONAL_RAIL, SUBURBAN, FUNICULAR, AERIAL_LIFT, OTHER, AREAL_LIFT, METRO, CABLE_CAR.}
     \item{\code{requireBikeTransport}}{Optional. Default is \code{false}.
 
 If set to \code{true}, all used transit trips are required to allow bike carriage.}
@@ -129,23 +135,26 @@ If set to \code{true}, all used transit trips are required to allow car carriage
 \itemize{
 \item \code{arriveBy=true}: Currently not used
 \item \code{arriveBy=false}: Maximum time in seconds for the street leg at \code{one} location.
+Is limited by server config variable \code{street_routing_max_prepost_transit_seconds}.
 }}
     \item{\code{maxPostTransitTime}}{Optional. Default is 15min which is \code{900}.
 \itemize{
 \item \code{arriveBy=true}: Maximum time in seconds for the street leg at \code{one} location.
 \item \code{arriveBy=false}: Currently not used
+Is limited by server config variable \code{street_routing_max_prepost_transit_seconds}.
 }}
-    \item{\code{.return_as}}{How to return the response. One of 'list' (default), 'string', or 'raw'.}
-    \item{\code{.json_parser}}{JSON parser when \code{.return_as = 'list'}. One of 'RcppSimdJson' (default) or 'jsonlite'.}
-    \item{\code{.headers}}{Named list of additional HTTP headers to include.}
-    \item{\code{.auth}}{Bearer token string or a function \code{function(req) req} to apply custom auth.}
-    \item{\code{.throttle_rate}}{Requests per second (numeric). If set, throttling is applied.}
-    \item{\code{.build_only}}{If TRUE, return the unperformed request object.}
-    \item{\code{.server}}{Override the server URL for this call.}
-    \item{\code{.referer}}{Optional Referer header value.}
-    \item{\code{.req_options}}{Named list of curl options passed to \code{httr2::req_options()}.}
-    \item{\code{.handle_response}}{Optional function \code{function(resp) ...} to post-process the response.}
-    \item{\code{.json_auto_unbox}}{If TRUE (default), auto-unbox scalar JSON values for request bodies.}
+    \item{\code{.return_as}}{A string specifying the return format. Defaults to 'list'. Options are 'list' for a parsed R list, 'raw' for the raw httr2_response object, or 'string' for the raw JSON string.}
+    \item{\code{.json_parser}}{A string specifying which parser to use when .return_as = 'list'. Defaults to 'RcppSimdJson' (faster) or 'jsonlite'. Beware that their output may differ slightly.}
+    \item{\code{.headers}}{A named list of extra HTTP headers to add to the request. If no 'Accept' header is provided anywhere, 'Accept: \emph{/}' will be sent by default.}
+    \item{\code{.auth}}{An authentication token or method (e.g., a bearer token string).}
+    \item{\code{.throttle_rate}}{A number to pass to \code{httr2::req_throttle()} to limit the rate of requests. For example, \code{15/60} means 15 requests per minute. This overrides any default rate set at client generation time.}
+    \item{\code{.build_only}}{A logical. If TRUE, the function will build and return the httr2_request object without performing it. Defaults to FALSE.}
+    \item{\code{.server}}{A string to override the base URL for this specific request. If provided, it will be used instead of the default server URL.}
+    \item{\code{.referer}}{A string to set the Referer HTTP header.}
+    \item{\code{.req_options}}{A named list of curl options passed to \code{httr2::req_options()}. Useful for timeouts, proxies, SSL, etc.}
+    \item{\code{.handle_response}}{A function taking an \code{httr2_response} and returning a value. If supplied, it overrides \code{.return_as} / \code{.json_parser} handling. See helpers like \code{oa3_content_or_stop()}.}
+    \item{\code{.json_auto_unbox}}{Logical. If TRUE, JSON bodies are encoded with \code{auto_unbox = TRUE} (jsonlite). Defaults to FALSE unless overridden.}
+    \item{\code{.paginate}}{A logical, character string, or function to enable pagination. If TRUE (or "link_header"), uses Link headers. Other options: "page_param", "cursor_param", or a custom function. See \code{oa3_paginate()}.}
   }}
 
 \item{output}{The desired output format. One of:
