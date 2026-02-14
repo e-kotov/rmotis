@@ -1,0 +1,8 @@
+{
+  "track_id": "fix_config_types_20260214",
+  "type": "bug",
+  "status": "new",
+  "created_at": "2026-02-14T14:00:00Z",
+  "updated_at": "2026-02-14T14:00:00Z",
+  "description": "Fix motis_configure_server() setting properly typed settings in config yaml (integers vs doubles)"
+}
