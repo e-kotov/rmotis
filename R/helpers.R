@@ -440,6 +440,45 @@ debug_msg <- function(...) {
   base
 }
 
+#' Recursively cast numeric values to integer where appropriate
+#' @param x A list (the configuration structure)
+#' @return The list with modified types
+#' @noRd
+.cast_config_types <- function(x) {
+  # 1. Known integer fields that MUST be integers
+  strict_int_fields <- c(
+    "n_threads", "port", "db_size", "flush_threshold",
+    "num_days", "update_interval", "http_timeout",
+    "stoptimes_max_results", "plan_max_results", "onetoall_max_results",
+    "onetoall_max_travel_minutes", "routing_max_timeout_seconds",
+    "gtfsrt_expose_max_trip_updates", "link_stop_distance", "max_footpath_length"
+  )
+
+  if (is.list(x)) {
+    nms <- names(x)
+    for (i in seq_along(x)) {
+      name <- if (!is.null(nms)) nms[i] else ""
+      
+      # Recursive call for nested lists
+      if (is.list(x[[i]])) {
+        x[[i]] <- .cast_config_types(x[[i]])
+      } else if (is.numeric(x[[i]]) && !is.integer(x[[i]])) {
+        # 2. Heuristic: if it's numeric but looks like a whole number, cast it
+        # 3. OR if it's in our strict list, cast it
+        # BUT only if it fits in a 32-bit integer range to avoid NAs
+        is_whole <- all(x[[i]] == floor(x[[i]]), na.rm = TRUE)
+        is_strict <- name %in% strict_int_fields
+        fits_int <- all(x[[i]] <= .Machine$integer.max && x[[i]] >= -.Machine$integer.max, na.rm = TRUE)
+        
+        if ((is_whole || is_strict) && fits_int) {
+          x[[i]] <- as.integer(x[[i]])
+        }
+      }
+    }
+  }
+  x
+}
+
 #' Resolve path to config.yml with smart detection
 #' @param path Character. Path to file or directory.
 #' @param type Character. Either "import" (root) or "server" (data).

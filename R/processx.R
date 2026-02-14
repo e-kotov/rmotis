@@ -319,6 +319,9 @@ motis_set_config <- function(config_path, ..., force = FALSE) {
     config_list <- .deep_update(config_list, updates)
   }
 
+  # Ensure types are correct for YAML output (e.g. integers instead of doubles)
+  config_list <- .cast_config_types(config_list)
+
   yaml::write_yaml(config_list, config_path)
   message("  -> Updated '", basename(config_path), "' with new configuration.")
   invisible(config_path)
