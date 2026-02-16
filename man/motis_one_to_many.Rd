@@ -66,10 +66,10 @@ Elevation cost profiles are currently used by following street modes:
 }
 
 Allowed values: NONE, LOW, HIGH.}
-    \item{\code{distance}}{Optional. Default is \code{false}.
+    \item{\code{withDistance}}{Optional. Default is \code{false}.
 If true, the response includes the distance in meters
 for each path. This requires path reconstruction and
-may be slower than duration-only queries.}
+is slower than duration-only queries.}
     \item{\code{.return_as}}{A string specifying the return format. Defaults to 'list'. Options are 'list' for a parsed R list, 'raw' for the raw httr2_response object, or 'string' for the raw JSON string.}
     \item{\code{.json_parser}}{A string specifying which parser to use when .return_as = 'list'. Defaults to 'RcppSimdJson' (faster) or 'jsonlite'. Beware that their output may differ slightly.}
     \item{\code{.headers}}{A named list of extra HTTP headers to add to the request. If no 'Accept' header is provided anywhere, 'Accept: \emph{/}' will be sent by default.}
