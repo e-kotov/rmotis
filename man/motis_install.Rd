@@ -6,6 +6,7 @@
 \usage{
 motis_install(
   version = "latest",
+  file = NULL,
   location = "cache",
   path = NULL,
   force = FALSE,
@@ -16,7 +17,13 @@ motis_install(
 \arguments{
 \item{version}{A string specifying the MOTIS version tag to install.
 Defaults to \code{"latest"}, which automatically finds the most recent stable
-version by calling \code{motis_check_latest_version()}.}
+version by calling \code{motis_check_latest_version()}. Ignored if \code{file} is
+provided.}
+
+\item{file}{An optional path to a local MOTIS archive file (\code{.zip},
+\code{.tar.bz2}, etc.) to install from, instead of downloading from GitHub.
+This is useful for installing binaries downloaded manually from GitHub
+releases or GitHub Actions artifacts.}
 
 \item{location}{A string specifying the type of installation location.
 One of:
@@ -51,13 +58,14 @@ The path to the installation directory, invisibly.
 }
 \description{
 Downloads and installs pre-compiled binaries for the MOTIS backend from the
-official GitHub releases.
+official GitHub releases, or installs from a local archive file.
 }
 \details{
 This function automates the download and setup of MOTIS. It performs the
 following steps:
 \enumerate{
-\item Queries the GitHub API to find the specified MOTIS release.
+\item Queries the GitHub API to find the specified MOTIS release (skipped if
+\code{file} is provided).
 \item Identifies the correct binary archive for the user's OS and architecture.
 \item Downloads and extracts the archive.
 \item Copies the MOTIS executable and its supporting files to the specified
@@ -75,6 +83,9 @@ motis_install(location = "project", path_action = "both")
 
 # Install to cache and set PATH for session only
 motis_install(location = "cache", path_action = "session")
+
+# Install from a local archive file
+motis_install(file = "path/to/motis-macos-arm64.zip")
 
 # Clean up the project's .Rprofile and session PATH
 motis_clear_path()

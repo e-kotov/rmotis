@@ -73,20 +73,22 @@ get_release_by_tag <- function(version) {
 #' @return A list containing `os` and `arch` if matched, otherwise `NULL`.
 #' @noRd
 parse_motis_asset_name <- function(filename) {
-  # Pattern for linux/macos: motis-{os}-{arch}.tar.bz2
-  pattern_nix <- "motis-(linux|macos)-(amd64|arm64)\\.tar\\.bz2"
-  match_nix <- regexec(pattern_nix, filename)
+  archive_ext <- "\\.(zip|tar\\.bz2|tar\\.gz|tar\\.xz|tgz)$"
 
-  if (match_nix[[1]][1] != -1) {
-    parts <- regmatches(filename, match_nix)[[1]]
+  # Pattern: motis-{os}-{arch}.{archive ext}
+  pattern <- paste0("^motis-(linux|macos|windows)-(amd64|arm64)", archive_ext)
+  m <- regexec(pattern, filename)
+
+  if (m[[1]][1] != -1) {
+    parts <- regmatches(filename, m)[[1]]
     return(list(os = parts[2], arch = parts[3]))
   }
 
-  # Pattern for windows: motis-windows.zip (assume x64/amd64)
-  pattern_win <- "motis-windows\\.zip"
-  match_win <- regexec(pattern_win, filename)
+  # Windows without arch: motis-windows.{archive ext}
+  pattern_win <- paste0("^motis-windows", archive_ext)
+  m_win <- regexec(pattern_win, filename)
 
-  if (match_win[[1]][1] != -1) {
+  if (m_win[[1]][1] != -1) {
     return(list(os = "windows", arch = "amd64"))
   }
 

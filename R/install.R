@@ -1,12 +1,13 @@
 #' Install MOTIS Backend Binaries
 #'
 #' Downloads and installs pre-compiled binaries for the MOTIS backend from the
-#' official GitHub releases.
+#' official GitHub releases, or installs from a local archive file.
 #'
 #' @details
 #' This function automates the download and setup of MOTIS. It performs the
 #' following steps:
-#' 1.  Queries the GitHub API to find the specified MOTIS release.
+#' 1.  Queries the GitHub API to find the specified MOTIS release (skipped if
+#'     `file` is provided).
 #' 2.  Identifies the correct binary archive for the user's OS and architecture.
 #' 3.  Downloads and extracts the archive.
 #' 4.  Copies the MOTIS executable and its supporting files to the specified
@@ -18,7 +19,12 @@
 #'
 #' @param version A string specifying the MOTIS version tag to install.
 #'   Defaults to `"latest"`, which automatically finds the most recent stable
-#'   version by calling `motis_check_latest_version()`.
+#'   version by calling `motis_check_latest_version()`. Ignored if `file` is
+#'   provided.
+#' @param file An optional path to a local MOTIS archive file (`.zip`,
+#'   `.tar.bz2`, etc.) to install from, instead of downloading from GitHub.
+#'   This is useful for installing binaries downloaded manually from GitHub
+#'   releases or GitHub Actions artifacts.
 #' @param location A string specifying the type of installation location.
 #'   One of:
 #'   \itemize{
@@ -52,11 +58,15 @@
 #' # Install to cache and set PATH for session only
 #' motis_install(location = "cache", path_action = "session")
 #'
+#' # Install from a local archive file
+#' motis_install(file = "path/to/motis-macos-arm64.zip")
+#'
 #' # Clean up the project's .Rprofile and session PATH
 #' motis_clear_path()
 #' }
 motis_install <- function(
   version = "latest",
+  file = NULL,
   location = "cache",
   path = NULL,
   force = FALSE,
@@ -74,11 +84,16 @@ motis_install <- function(
   if (!is.null(path) && !is.character(path)) {
     stop("'path' must be a character string.", call. = FALSE)
   }
+  if (!is.null(file)) {
+    if (!is.character(file) || !file.exists(file)) {
+      stop("'file' must be a path to an existing archive file.", call. = FALSE)
+    }
+  }
   if (is.null(path)) {
     location <- match.arg(location, c("cache", "project"))
   }
 
-  if (!requireNamespace("httr2", quietly = TRUE)) {
+  if (is.null(file) && !requireNamespace("httr2", quietly = TRUE)) {
     stop("Package 'httr2' is required.", call. = FALSE)
   }
   path_action <- match.arg(path_action)
@@ -115,49 +130,53 @@ motis_install <- function(
     return(invisible(dest_dir))
   }
 
-  # --- 4. Determine version and find asset URL ---
-  if (version == "latest") {
-    if (!quiet) {
-      message("Finding latest stable version with available binaries...")
+  # --- 4. Get archive file (download or use local) ---
+  if (!is.null(file)) {
+    tmp_file <- normalizePath(file)
+    if (!quiet) message("Installing from local file: ", tmp_file)
+  } else {
+    if (version == "latest") {
+      if (!quiet) {
+        message("Finding latest stable version with available binaries...")
+      }
+      version <- motis_check_latest_version()
+      if (!quiet) message("Latest stable version is '", version, "'")
     }
-    version <- motis_check_latest_version()
-    if (!quiet) message("Latest stable version is '", version, "'")
-  }
-  release_info <- get_release_by_tag(version)
-  assets <- find_release_assets(release_info)
-  platform_id <- paste(platform$os, platform$arch, sep = "_")
-  asset_url <- assets[[platform_id]]
+    release_info <- get_release_by_tag(version)
+    assets <- find_release_assets(release_info)
+    platform_id <- paste(platform$os, platform$arch, sep = "_")
+    asset_url <- assets[[platform_id]]
 
-  if (is.null(asset_url)) {
-    stop(
-      "Could not find a compatible binary for your platform (",
-      platform_id,
-      ") in release '",
-      version,
-      "'.",
-      call. = FALSE
+    if (is.null(asset_url)) {
+      stop(
+        "Could not find a compatible binary for your platform (",
+        platform_id,
+        ") in release '",
+        version,
+        "'.",
+        call. = FALSE
+      )
+    }
+    if (!quiet) {
+      message("Found matching binary: ", basename(asset_url))
+    }
+
+    if (!quiet) {
+      message("Downloading from ", asset_url)
+    }
+    tmp_file <- tempfile(fileext = basename(asset_url))
+    on.exit(unlink(tmp_file), add = TRUE)
+
+    tryCatch(
+      {
+        req <- httr2::request(asset_url)
+        httr2::req_perform(req, path = tmp_file)
+      },
+      error = function(e) {
+        stop("Failed to download file: ", e$message, call. = FALSE)
+      }
     )
   }
-  if (!quiet) {
-    message("Found matching binary: ", basename(asset_url))
-  }
-
-  # --- 5. Download and extract ---
-  if (!quiet) {
-    message("Downloading from ", asset_url)
-  }
-  tmp_file <- tempfile(fileext = basename(asset_url))
-  on.exit(unlink(tmp_file), add = TRUE)
-
-  tryCatch(
-    {
-      req <- httr2::request(asset_url)
-      httr2::req_perform(req, path = tmp_file)
-    },
-    error = function(e) {
-      stop("Failed to download file: ", e$message, call. = FALSE)
-    }
-  )
 
   tmp_extract_dir <- tempfile()
   dir.create(tmp_extract_dir)
@@ -169,16 +188,28 @@ motis_install <- function(
   if (grepl("\\.zip$", tmp_file)) {
     utils::unzip(tmp_file, exdir = tmp_extract_dir)
   } else {
-    utils::untar(
-      tmp_file,
-      exdir = tmp_extract_dir,
-      extras = "--strip-components=1"
-    )
+    utils::untar(tmp_file, exdir = tmp_extract_dir)
   }
 
-  # --- 6. Copy files to destination ---
-  # Handle cases where archives (especially zips) extract into a single subfolder
+  # Handle nested archive (e.g. a .tar.bz2 inside a zip)
   extracted_items <- list.files(tmp_extract_dir, full.names = TRUE)
+  nested_tar <- grep(
+    "\\.(tar\\.bz2|tar\\.gz|tar\\.xz|tgz)$", extracted_items, value = TRUE
+  )
+  if (length(nested_tar) == 1 && length(extracted_items) == 1) {
+    if (!quiet) message("Extracting nested archive...")
+    utils::untar(nested_tar, exdir = tmp_extract_dir)
+    unlink(nested_tar)
+  }
+
+  # Verify extraction produced files
+  extracted_items <- list.files(tmp_extract_dir, full.names = TRUE)
+  if (length(extracted_items) == 0) {
+    stop("Failed to extract archive: no files were produced.", call. = FALSE)
+  }
+
+  # --- 5. Copy files to destination ---
+  # If everything is inside a single wrapper directory, descend into it
   source_dir <- if (
     length(extracted_items) == 1 && dir.exists(extracted_items[1])
   ) {
@@ -203,7 +234,7 @@ motis_install <- function(
     recursive = TRUE
   )
 
-  # --- 7. Set permissions and update PATH ---
+  # --- 6. Set permissions and update PATH ---
   if (.Platform$OS.type != "windows") {
     if (!quiet) {
       message("Setting executable permissions...")
