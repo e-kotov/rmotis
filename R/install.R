@@ -242,6 +242,22 @@ motis_install <- function(
     Sys.chmod(motis_exe, mode = "0755")
   }
 
+  # --- 7. Verify the binary is executable ---
+  version_check <- tryCatch(
+    processx::run(motis_exe, "--version", error_on_status = FALSE),
+    error = function(e) NULL
+  )
+  if (is.null(version_check) || version_check$status != 0) {
+    warning(
+      "MOTIS was extracted but could not be executed. ",
+      "The binary may have been removed by antivirus software. ",
+      "Check: ", motis_exe,
+      call. = FALSE
+    )
+  } else if (!quiet) {
+    message("Verified: MOTIS ", trimws(version_check$stdout))
+  }
+
   handle_path_setting(path_action, dest_dir, project_path, quiet)
 
   if (!quiet) {

@@ -126,3 +126,103 @@ test_that("motis_install rejects non-character path", {
     "'path' must be a character string"
   )
 })
+
+# --- motis_install() extraction and verification with mock archive ---
+
+# Helper: create a mock zip containing a single file named "motis"
+create_mock_motis_zip <- function(content, executable = TRUE) {
+  staging_dir <- tempfile("motis_staging_")
+  dir.create(staging_dir)
+
+  fake_motis <- file.path(staging_dir, "motis")
+  writeLines(content, fake_motis)
+  if (executable) Sys.chmod(fake_motis, "0755")
+
+  mock_zip <- tempfile(fileext = ".zip")
+  withr::with_dir(staging_dir, {
+    utils::zip(mock_zip, "motis", flags = "-q")
+  })
+
+  unlink(staging_dir, recursive = TRUE)
+  mock_zip
+}
+
+test_that("motis_install extracts zip and verifies binary", {
+  skip_on_os("windows")
+
+  mock_zip <- create_mock_motis_zip(c("#!/bin/sh", 'echo "v0.0.0-test"'))
+  on.exit(unlink(mock_zip), add = TRUE)
+
+  dest <- tempfile("motis_dest_")
+  dir.create(dest)
+  on.exit(unlink(dest, recursive = TRUE), add = TRUE)
+
+  result <- NULL
+  suppressMessages(expect_message(
+    result <- motis_install(
+      file = mock_zip, path = dest, path_action = "none", force = TRUE
+    ),
+    "Verified: MOTIS v0.0.0-test"
+  ))
+
+  expect_true(file.exists(file.path(dest, "motis")))
+  expect_equal(result, normalizePath(dest))
+})
+
+test_that("motis_install suppresses verification message when quiet", {
+  skip_on_os("windows")
+
+  mock_zip <- create_mock_motis_zip(c("#!/bin/sh", 'echo "v0.0.0-test"'))
+  on.exit(unlink(mock_zip), add = TRUE)
+
+  dest <- tempfile("motis_dest_")
+  dir.create(dest)
+  on.exit(unlink(dest, recursive = TRUE), add = TRUE)
+
+  expect_no_message(
+    motis_install(
+      file = mock_zip, path = dest, path_action = "none",
+      force = TRUE, quiet = TRUE
+    )
+  )
+})
+
+test_that("motis_install warns when binary exits with error", {
+  skip_on_os("windows")
+
+  mock_zip <- create_mock_motis_zip(c("#!/bin/sh", "exit 1"))
+  on.exit(unlink(mock_zip), add = TRUE)
+
+  dest <- tempfile("motis_dest_")
+  dir.create(dest)
+  on.exit(unlink(dest, recursive = TRUE), add = TRUE)
+
+  suppressMessages(expect_warning(
+    motis_install(
+      file = mock_zip, path = dest, path_action = "none", force = TRUE
+    ),
+    "could not be executed"
+  ))
+})
+
+test_that("motis_install warns when binary is not executable", {
+  skip_on_os("windows")
+
+  # Create zip with a non-executable file — processx::run() will error,
+  # tryCatch returns NULL, triggering the warning
+  mock_zip <- create_mock_motis_zip(
+    c("not a real binary"), executable = FALSE
+  )
+  on.exit(unlink(mock_zip), add = TRUE)
+
+  dest <- tempfile("motis_dest_")
+  dir.create(dest)
+  on.exit(unlink(dest, recursive = TRUE), add = TRUE)
+
+  suppressMessages(expect_warning(
+    motis_install(
+      file = mock_zip, path = dest, path_action = "none", force = TRUE
+    ),
+    "could not be executed"
+  ))
+})
