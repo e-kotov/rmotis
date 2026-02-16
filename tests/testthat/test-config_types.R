@@ -1,5 +1,4 @@
 library(testthat)
-devtools::load_all()
 
 test_that("motis_set_config handles numeric types correctly", {
   # Create a temporary config file

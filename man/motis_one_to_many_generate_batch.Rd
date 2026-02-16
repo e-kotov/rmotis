@@ -12,6 +12,8 @@ motis_one_to_many_generate_batch(
   arrive_by = FALSE,
   max = 7200,
   maxMatchingDistance = 1000,
+  one_id_col = "id",
+  many_id_col = "id",
   ...,
   append = FALSE,
   api_endpoint = "/api/v1/one-to-many"
@@ -35,16 +37,27 @@ motis_one_to_many_generate_batch(
 
 \item{maxMatchingDistance}{maximum matching distance in meters}
 
+\item{one_id_col}{The name of the column in \code{one} to use as the origin
+identifier in the metadata file. Defaults to \code{"id"}. Falls back to
+sequential row numbers if the column is not found.}
+
+\item{many_id_col}{The name of the column in \code{many} to use as the
+destination identifiers in the metadata file. Defaults to \code{"id"}.}
+
 \item{...}{Additional MOTIS API parameters.}
 
-\item{append}{Logical. If \code{TRUE}, appends to \code{output_file}.}
+\item{append}{Logical. If \code{TRUE}, appends to \code{output_file} and its
+\code{.meta} sidecar.}
 
 \item{api_endpoint}{The API path. Defaults to \code{"/api/v1/one-to-many"}.}
 }
 \value{
-Invisibly returns the number of queries written (always 1 for this endpoint, but vectorized over many).
+Invisibly returns the number of queries written (always 1).
 }
 \description{
 Efficiently constructs a text file of MOTIS one-to-many street routing
-queries for batch processing.
+queries for batch processing. Also writes a metadata sidecar file
+(\verb{\{output_file\}.meta}) that records the origin and destination IDs for each
+query line, enabling reliable reconstruction of results via
+\code{\link[=motis_one_to_many_read_batch]{motis_one_to_many_read_batch()}}.
 }
