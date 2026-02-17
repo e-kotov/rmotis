@@ -18,7 +18,10 @@ motis_one_to_many_batch(
   motis_path = NULL,
   chunk_size = 10000L,
   output_callback = NULL,
-  echo = TRUE
+  echo = TRUE,
+  output_dir = tempdir(),
+  keep_files = FALSE,
+  cores = 1L
 )
 }
 \arguments{
@@ -56,6 +59,16 @@ the \verb{data/} subfolder with imported routing data).}
 
 \item{echo}{Logical. If \code{TRUE} (default), echo MOTIS batch output
 (timing statistics) to the console.}
+
+\item{output_dir}{Directory where to save the temporary batch files
+(query, metadata, response). Defaults to \code{tempdir()}.}
+
+\item{keep_files}{Logical. If \code{TRUE}, the temporary batch files are kept
+after execution. Defaults to \code{FALSE}.}
+
+\item{cores}{Integer. The number of cores to use for parallel processing.
+The \code{many} destinations will be split into this many chunks, creating
+additional query lines that MOTIS can process in parallel. Defaults to \code{1}.}
 }
 \value{
 A data.frame with columns \code{from_id}, \code{to_id}, \code{duration_s}, and

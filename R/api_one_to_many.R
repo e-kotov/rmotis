@@ -434,6 +434,13 @@ motis_one_to_many_read_batch <- function(
 #'   [motis_one_to_many_read_batch()]).
 #' @param echo Logical. If `TRUE` (default), echo MOTIS batch output
 #'   (timing statistics) to the console.
+#' @param output_dir Directory where to save the temporary batch files 
+#'   (query, metadata, response). Defaults to `tempdir()`.
+#' @param keep_files Logical. If `TRUE`, the temporary batch files are kept
+#'   after execution. Defaults to `FALSE`.
+#' @param cores Integer. The number of cores to use for parallel processing.
+#'   The `many` destinations will be split into this many chunks, creating
+#'   additional query lines that MOTIS can process in parallel. Defaults to `1`.
 #'
 #' @return A data.frame with columns `from_id`, `to_id`, `duration_s`, and
 #'   optionally `distance_m`. Returns `invisible(NULL)` when `output_callback`
@@ -454,26 +461,45 @@ motis_one_to_many_batch <- function(
   motis_path = NULL,
   chunk_size = 10000L,
   output_callback = NULL,
-  echo = TRUE
+  echo = TRUE,
+  output_dir = tempdir(),
+  keep_files = FALSE,
+  cores = 1L
 ) {
   mode <- match.arg(mode)
   data_dir <- normalizePath(data_dir, mustWork = TRUE)
+  if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
   dots <- .collapse_dots(list(...))
 
   # Resolve MOTIS binary
   cmd <- resolve_motis_cmd(motis_path)
 
   # Create temp files
-  query_file <- tempfile(fileext = ".txt")
+  query_file <- tempfile(pattern = "motis_query_", tmpdir = output_dir, fileext = ".txt")
   meta_file <- paste0(query_file, ".meta")
-  response_file <- tempfile(fileext = ".txt")
-  on.exit(unlink(c(query_file, meta_file, response_file)), add = TRUE)
+  response_file <- tempfile(pattern = "motis_response_", tmpdir = output_dir, fileext = ".txt")
+  
+  if (!keep_files) {
+    on.exit(unlink(c(query_file, meta_file, response_file)), add = TRUE)
+  }
 
   # Format coordinates
   one_places <- .format_place_onemany(one)
   many_places_vec <- .format_place_onemany(many)
-  many_places_str <- paste(many_places_vec, collapse = ",")
-
+  
+  # Split many destinations into chunks based on cores
+  n_many <- length(many_places_vec)
+  cores <- max(1L, as.integer(cores))
+  if (cores > n_many) cores <- n_many # Don't use more cores than destinations
+  
+  # Create split indices
+  if (cores <= 1L) {
+    many_indices <- list(seq_len(n_many))
+  } else {
+    # Distribute indices as evenly as possible
+    many_indices <- split(seq_len(n_many), sort(seq_len(n_many) %% cores))
+  }
+  
   # Extract IDs
   one_ids <- .get_ids(one, id_col = one_id_col)
   many_ids <- .get_ids(many, id_col = many_id_col)
@@ -481,10 +507,12 @@ motis_one_to_many_batch <- function(
   # Validate with first origin (dry-run)
   tryCatch({
     .validate_batch_params(dots)
+    # Validate with first chunk of many
+    many_places_str_chk <- paste(many_places_vec[many_indices[[1]]], collapse = ",")
     do.call(motis.client::mc_oneToMany, c(
       list(
         one = one_places[1L],
-        many = many_places_str,
+        many = many_places_str_chk,
         mode = mode,
         arriveBy = arrive_by,
         max = max,
@@ -500,27 +528,44 @@ motis_one_to_many_batch <- function(
 
   # Generate all query lines and metadata lines
   n_origins <- length(one_places)
-  query_lines <- character(n_origins)
-  meta_lines <- character(n_origins)
-
+  n_chunks <- length(many_indices)
+  total_lines <- n_origins * n_chunks
+  
+  query_lines <- character(total_lines)
+  meta_lines <- character(total_lines)
+  
+  line_idx <- 0L
   for (i in seq_len(n_origins)) {
-    query_lines[i] <- .build_one_to_many_query(
-      one_place = one_places[i],
-      many_places_str = many_places_str,
-      mode = mode,
-      arrive_by = arrive_by,
-      max = max,
-      maxMatchingDistance = maxMatchingDistance,
-      dots = dots,
-      api_endpoint = "/api/v1/one-to-many"
-    )
-    meta_lines[i] <- paste(c(one_ids[i], many_ids), collapse = "\t")
+    for (k in seq_len(n_chunks)) {
+      idx <- many_indices[[k]]
+      many_chk_str <- paste(many_places_vec[idx], collapse = ",")
+      many_ids_chk <- many_ids[idx]
+      
+      line_idx <- line_idx + 1L
+      
+      query_lines[line_idx] <- .build_one_to_many_query(
+        one_place = one_places[i],
+        many_places_str = many_chk_str,
+        mode = mode,
+        arrive_by = arrive_by,
+        max = max,
+        maxMatchingDistance = maxMatchingDistance,
+        dots = dots,
+        api_endpoint = "/api/v1/one-to-many"
+      )
+      
+      # First element is origin ID, rest are destination IDs (for this chunk)
+      meta_lines[line_idx] <- paste(c(one_ids[i], many_ids_chk), collapse = "\t")
+    }
   }
 
   writeLines(query_lines, query_file)
   writeLines(meta_lines, meta_file)
 
-  message("Generated ", n_origins, " batch queries.")
+  if (echo) {
+    .print_file_info("Query file", query_file, n_lines = total_lines)
+    .print_file_info("Metadata file", meta_file, n_lines = total_lines)
+  }
 
   # Execute MOTIS batch
   result <- processx::run(
@@ -535,6 +580,10 @@ motis_one_to_many_batch <- function(
     err_lines <- if (nzchar(result$stderr)) result$stderr else result$stdout
     stop("MOTIS batch failed (exit code ", result$status, "):\n", err_lines,
          call. = FALSE)
+  }
+
+  if (echo) {
+    .print_file_info("Response file", response_file, n_lines = total_lines)
   }
 
   # Parse responses
@@ -594,6 +643,20 @@ motis_one_to_many_batch <- function(
       collapse = "&"
     )
   )
+}
+
+
+#' Internal helper to print file info
+#' @noRd
+.print_file_info <- function(label, file, n_lines = NULL) {
+  size <- file.size(file)
+  size_str <- format(structure(size, class = "object_size"), units = "auto")
+  
+  if (is.null(n_lines)) {
+    message(sprintf("%-14s %s (%s)", paste0(label, ":"), file, size_str))
+  } else {
+    message(sprintf("%-14s %s (%s, %d lines)", paste0(label, ":"), file, size_str, n_lines))
+  }
 }
 
 
