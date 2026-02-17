@@ -64,17 +64,17 @@ motis_one_to_many_plan_batch <- function(
   api_endpoint = "/api/v1/one-to-many"
 ) {
   mode <- match.arg(mode)
-  
+
   # Format coordinates and extract IDs
   one_places <- .format_place_onemany(one)
   many_places_vec <- .format_place_onemany(many)
   one_ids <- .get_ids(one, id_col = one_id_col)
   many_ids <- .get_ids(many, id_col = many_id_col)
   n_origins <- length(one_places)
-  
+
   # Extract coordinates - always needed for building origin data frames
   one_coords <- .extract_coords(one)
-  
+
   # Spatial sort origins by latitude
   if (spatial_sort) {
     sort_idx <- order(one_coords[, "lat"])
@@ -82,7 +82,7 @@ motis_one_to_many_plan_batch <- function(
     one_ids <- one_ids[sort_idx]
     one_coords <- one_coords[sort_idx, , drop = FALSE]
   }
-  
+
   # Prepare spatial filter if enabled
   if (spatial_filter) {
     many_coords <- .extract_coords(many)
@@ -93,28 +93,32 @@ motis_one_to_many_plan_batch <- function(
     # Convert to degrees (rough approximation: 1 degree ≈ 111 km)
     max_radius_deg <- max_radius_km / 111.0
   }
-  
+
   # Iterate over origins
   for (i in seq_len(n_origins)) {
     # Apply spatial filter for this origin if enabled
     if (spatial_filter) {
       origin_lat <- one_coords[i, "lat"]
       origin_lon <- one_coords[i, "lon"]
-      
+
       # Bounding box filter
       lat_diff <- abs(many_coords[, "lat"] - origin_lat)
       lon_diff <- abs(many_coords[, "lon"] - origin_lon)
       keep_idx <- which(lat_diff <= max_radius_deg & lon_diff <= max_radius_deg)
-      
+
       # Skip if no destinations in range
       if (length(keep_idx) == 0) {
         if (progress) {
-          message(sprintf("Origin %d/%d (%.2f%%) — 0 destinations (skipped)",
-                          i, n_origins, i / n_origins * 100))
+          message(sprintf(
+            "Origin %d/%d (%.2f%%) — 0 destinations (skipped)",
+            i,
+            n_origins,
+            i / n_origins * 100
+          ))
         }
         next
       }
-      
+
       # Use filtered destinations for this origin
       origin_many <- data.frame(
         lat = many_coords[keep_idx, "lat"],
@@ -126,14 +130,18 @@ motis_one_to_many_plan_batch <- function(
       # No filtering, use all destinations
       origin_many <- many
     }
-    
+
     if (progress) {
       n_dests <- if (spatial_filter) length(keep_idx) else length(many_ids)
-      message(sprintf("Origin %d/%d (%.2f%%) — %s destinations",
-                      i, n_origins, i / n_origins * 100,
-                      format(n_dests, big.mark = ",")))
+      message(sprintf(
+        "Origin %d/%d (%.2f%%) — %s destinations",
+        i,
+        n_origins,
+        i / n_origins * 100,
+        format(n_dests, big.mark = ",")
+      ))
     }
-    
+
     # Generate batch query for this origin
     origin_one <- data.frame(
       lat = one_coords[i, "lat"],
@@ -141,7 +149,7 @@ motis_one_to_many_plan_batch <- function(
       stringsAsFactors = FALSE
     )
     origin_one[[one_id_col]] <- one_ids[i]
-    
+
     motis_one_to_many_generate_batch(
       one = origin_one,
       many = origin_many,
@@ -153,11 +161,12 @@ motis_one_to_many_plan_batch <- function(
       one_id_col = one_id_col,
       many_id_col = many_id_col,
       ...,
-      append = (i > 1),  # First iteration creates file, rest append
-      api_endpoint = api_endpoint
+      append = (i > 1), # First iteration creates file, rest append
+      api_endpoint = api_endpoint,
+      quiet = !progress
     )
   }
-  
+
   # Return file info
   meta_file <- paste0(output_file, ".meta")
   file_info <- list(
@@ -165,12 +174,14 @@ motis_one_to_many_plan_batch <- function(
     n_lines = length(readLines(output_file)),
     file_size = file.size(output_file)
   )
-  
+
   if (progress) {
-    message(sprintf("✓ Generated %s query lines (%s bytes)",
-                    format(file_info$n_lines, big.mark = ","),
-                    format(file_info$file_size, big.mark = ",")))
+    message(sprintf(
+      "✓ Generated %s query lines (%s bytes)",
+      format(file_info$n_lines, big.mark = ","),
+      format(file_info$file_size, big.mark = ",")
+    ))
   }
-  
+
   invisible(file_info)
 }

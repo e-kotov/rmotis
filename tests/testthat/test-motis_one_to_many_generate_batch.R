@@ -8,7 +8,7 @@ test_that("motis_one_to_many_generate_batch works", {
   one <- data.frame(lat = 59.3, lon = 18.0)
   many <- data.frame(lat = c(59.4, 59.5), lon = c(18.1, 18.2))
 
-  n <- motis_one_to_many_generate_batch(one, many, output_file, mode = "WALK", max = 3600)
+  n <- motis_one_to_many_generate_batch(quiet = TRUE, one, many, output_file, mode = "WALK", max = 3600)
   expect_equal(n, 1L)
 
   lines <- readLines(output_file)
@@ -44,7 +44,7 @@ test_that("motis_one_to_many_generate_batch writes correct IDs from named column
   many <- data.frame(lat = c(59.4, 59.5), lon = c(18.1, 18.2),
                      name = c("dest_X", "dest_Y"))
 
-  motis_one_to_many_generate_batch(
+  motis_one_to_many_generate_batch(quiet = TRUE, 
     one, many, output_file, mode = "WALK",
     one_id_col = "name", many_id_col = "name"
   )
@@ -66,8 +66,8 @@ test_that("motis_one_to_many_generate_batch appends to both query and meta files
   many <- data.frame(lat = c(59.5, 59.6), lon = c(18.2, 18.3),
                      id = c("X", "Y"))
 
-  motis_one_to_many_generate_batch(one_1, many, output_file, mode = "CAR")
-  motis_one_to_many_generate_batch(one_2, many, output_file, mode = "CAR",
+  motis_one_to_many_generate_batch(quiet = TRUE, one_1, many, output_file, mode = "CAR")
+  motis_one_to_many_generate_batch(quiet = TRUE, one_2, many, output_file, mode = "CAR",
                                    append = TRUE)
 
   query_lines <- readLines(output_file)
@@ -91,13 +91,13 @@ test_that("motis_one_to_many_generate_batch validates params", {
   
   # Invalid mode
   expect_error(
-    motis_one_to_many_generate_batch(one, many, output_file, mode = "INVALID"),
+    motis_one_to_many_generate_batch(quiet = TRUE, one, many, output_file, mode = "INVALID"),
     "'arg' should be one of"
   )
   
   # Invalid additional param type
   expect_error(
-    motis_one_to_many_generate_batch(one, many, output_file, mode = "WALK", maxTransfers = "a"),
+    motis_one_to_many_generate_batch(quiet = TRUE, one, many, output_file, mode = "WALK", maxTransfers = "a"),
     "Parameter 'maxTransfers' must be numeric/integer"
   )
 })

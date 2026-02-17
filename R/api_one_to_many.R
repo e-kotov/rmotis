@@ -195,7 +195,7 @@ motis_one_to_many_generate_batch <- function(
   many_id_col = "id",
   ...,
   append = FALSE,
-  api_endpoint = "/api/v1/one-to-many"
+  api_endpoint = "/api/v1/one-to-many", quiet = FALSE
 ) {
   if (missing(output_file) || !is.character(output_file) || length(output_file) != 1) {
     stop("`output_file` must be a single string specifying the file path.", call. = FALSE)
@@ -256,7 +256,7 @@ motis_one_to_many_generate_batch <- function(
   on.exit(close(meta_con), add = TRUE)
   writeLines(meta_line, con = meta_con)
 
-  message("Successfully wrote one-to-many batch query to '", output_file, "'.")
+  if (!quiet) message("Successfully wrote one-to-many batch query to '", output_file, "'.")
   invisible(1L)
 }
 

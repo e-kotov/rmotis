@@ -16,7 +16,8 @@ motis_one_to_many_generate_batch(
   many_id_col = "id",
   ...,
   append = FALSE,
-  api_endpoint = "/api/v1/one-to-many"
+  api_endpoint = "/api/v1/one-to-many",
+  quiet = FALSE
 )
 }
 \arguments{

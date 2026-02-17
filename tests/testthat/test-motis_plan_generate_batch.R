@@ -7,7 +7,7 @@ test_that("motis_plan_generate_batch generates paired queries correctly", {
   origins <- data.frame(lat = c(59.1, 59.2), lon = c(18.1, 18.2))
   dests <- data.frame(lat = c(59.3, 59.4), lon = c(18.3, 18.4))
 
-  n <- motis_plan_generate_batch(origins, dests, tmp, time = "2025-01-01 12:00:00")
+  n <- motis_plan_generate_batch(quiet = TRUE, origins, dests, tmp, time = "2025-01-01 12:00:00")
   expect_equal(n, 2)
 
   lines <- readLines(tmp)
@@ -26,7 +26,7 @@ test_that("motis_plan_generate_batch handles all_pairs (Cartesian product)", {
   origins <- c("A", "B")
   dests <- c("C", "D", "E")
 
-  n <- motis_plan_generate_batch(origins, dests, tmp, all_pairs = TRUE)
+  n <- motis_plan_generate_batch(quiet = TRUE, origins, dests, tmp, all_pairs = TRUE)
   expect_equal(n, 6)
 
   lines <- readLines(tmp)
@@ -45,7 +45,7 @@ test_that("motis_plan_generate_batch handles vectorised time", {
   dests <- c("C", "D")
   times <- as.POSIXct(c("2025-01-01 10:00:00", "2025-01-01 11:00:00"), tz = "UTC")
 
-  motis_plan_generate_batch(origins, dests, tmp, time = times)
+  motis_plan_generate_batch(quiet = TRUE, origins, dests, tmp, time = times)
   lines <- readLines(tmp)
 
   expect_match(lines[1], "time=2025-01-01T10:00:00Z")
@@ -60,7 +60,7 @@ test_that("motis_plan_generate_batch handles additional parameters and URL encod
   origins <- c("Stockholm Central")
   dests <- c("Göteborg Central")
 
-  motis_plan_generate_batch(
+  motis_plan_generate_batch(quiet = TRUE, 
     origins, dests, tmp,
     directModes = c("WALK", "CAR"), # Character vector should be collapsed
     maxTravelTime = 3600
@@ -79,8 +79,8 @@ test_that("motis_plan_generate_batch supports appending", {
   tmp <- tempfile()
   on.exit(unlink(tmp))
 
-  motis_plan_generate_batch("A", "B", tmp)
-  motis_plan_generate_batch("C", "D", tmp, append = TRUE)
+  motis_plan_generate_batch(quiet = TRUE, "A", "B", tmp)
+  motis_plan_generate_batch(quiet = TRUE, "C", "D", tmp, append = TRUE)
 
   lines <- readLines(tmp)
   expect_length(lines, 2)
@@ -95,13 +95,13 @@ test_that("motis_plan_generate_batch fails on invalid API parameters", {
   # Wrong type for a known parameter
   # `detailedTransfers` expects a boolean, passing a string should fail verification
   expect_error(
-    motis_plan_generate_batch("A", "B", tmp, detailedTransfers = "invalid_boolean"),
+    motis_plan_generate_batch(quiet = TRUE, "A", "B", tmp, detailedTransfers = "invalid_boolean"),
     "Parameter 'detailedTransfers' must be logical"
   )
 
   # Wrong type for a numeric parameter
   expect_error(
-    motis_plan_generate_batch("A", "B", tmp, maxTravelTime = "invalid_number"),
+    motis_plan_generate_batch(quiet = TRUE, "A", "B", tmp, maxTravelTime = "invalid_number"),
     "Parameter 'maxTravelTime' must be numeric"
   )
 })

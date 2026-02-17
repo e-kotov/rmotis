@@ -51,7 +51,7 @@ motis_plan_generate_batch <- function(
   all_pairs = FALSE,
   ...,
   append = FALSE,
-  api_endpoint = "/api/v1/plan"
+  api_endpoint = "/api/v1/plan", quiet = FALSE
 ) {
   # --- 1. Argument Validation & Pre-processing ---
   if (missing(output_file) || !is.character(output_file) || length(output_file) != 1) {
@@ -137,6 +137,6 @@ motis_plan_generate_batch <- function(
   on.exit(close(con))
   writeLines(lines, con = con)
 
-  message("Successfully wrote ", n_queries, " query(ies) to '", output_file, "'.")
+  if (!quiet) message("Successfully wrote ", n_queries, " query(ies) to '", output_file, "'.")
   invisible(n_queries)
 }

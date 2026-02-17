@@ -92,6 +92,9 @@ motis_one_to_many_parallel <- function(
   # Ensure trailing slash is removed
   .server <- sub("/$", "", .server)
   
+  # Wait for server readiness
+  if (getOption("rmotis.wait_for_server", TRUE)) .wait_for_server(.server)
+  
   # Format coordinates and extract IDs
   one_places <- .format_place_onemany(one)
   many_places_vec <- .format_place_onemany(many)
@@ -377,7 +380,10 @@ motis_one_to_many_parallel <- function(
       httr2::req_url_path_append("api/v1/one-to-many") |>
       httr2::req_method("POST") |>
       httr2::req_headers("Content-Type" = "application/x-www-form-urlencoded") |>
-      httr2::req_body_form(!!!body_params)
+      httr2::req_body_form(!!!body_params) |>
+      # Add retry logic
+      httr2::req_retry(max_tries = getOption("rmotis.retry_max_tries", 3), backoff = getOption("rmotis.retry_backoff", ~ 2)) |>
+      httr2::req_timeout(600)
     
     requests[[i]] <- req
   }
@@ -577,4 +583,20 @@ motis_one_to_many_parallel <- function(
       )
     }
   }
+}
+
+#' @noRd
+.wait_for_server <- function(server_url, timeout = 120, poll_interval = 2) {
+  deadline <- Sys.time() + timeout
+  while (Sys.time() < deadline) {
+    tryCatch({
+      resp <- httr2::request(paste0(server_url, "/")) |>
+        httr2::req_timeout(5) |>
+        httr2::req_perform()
+      if (httr2::resp_status(resp) < 500) return(invisible(TRUE))
+    }, error = function(e) NULL)
+    Sys.sleep(poll_interval)
+  }
+  warning(sprintf("MOTIS server at %s did not respond within %.0f seconds. Proceeding anyway...", 
+                  server_url, timeout), call. = FALSE)
 }

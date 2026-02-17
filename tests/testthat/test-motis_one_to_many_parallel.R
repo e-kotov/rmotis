@@ -1,4 +1,4 @@
-test_that("basic parallel execution works (mocked)", {
+options(rmotis.retry_max_tries = 1L); test_that("basic parallel execution works (mocked)", { options(rmotis.wait_for_server = FALSE);
   # Test data: 2 origins × 3 destinations
   one <- data.frame(lat = c(59.3, 59.4), lon = c(18.0, 18.1), id = c("O1", "O2"))
   many <- data.frame(lat = c(60.0, 60.1, 60.2), lon = c(18.5, 18.6, 18.7),
@@ -103,14 +103,14 @@ test_that("HTTP error handling - 500 server error", {
   
   # Should handle error gracefully and return NA
   result <- httr2::with_mocked_responses(mock_fn, {
-    motis_one_to_many_parallel(
+    suppressWarnings(motis_one_to_many_parallel(
       one, many,
       mode = "WALK",
       .server = "http://localhost:8080",
       progress = FALSE,
       spatial_filter = FALSE,
       spatial_sort = FALSE
-    )
+    ))
   })
   
   # Should still return a row with NA values
@@ -147,7 +147,7 @@ test_that("partial batch failures handled correctly", {
   }
   
   result <- httr2::with_mocked_responses(mock_fn, {
-    motis_one_to_many_parallel(
+    suppressWarnings(motis_one_to_many_parallel(
       one, many,
       mode = "WALK",
       .server = "http://localhost:8080",
@@ -155,7 +155,7 @@ test_that("partial batch failures handled correctly", {
       progress = FALSE,
       spatial_filter = FALSE,
       spatial_sort = FALSE
-    )
+    ))
   })
   
   # Should have 3 rows: 2 with data, 1 with NA
@@ -285,14 +285,14 @@ test_that("invalid JSON response handling", {
   
   # Should handle parse error gracefully
   result <- httr2::with_mocked_responses(mock_fn, {
-    motis_one_to_many_parallel(
+    suppressWarnings(motis_one_to_many_parallel(
       one, many,
       mode = "WALK",
       .server = "http://localhost:8080",
       progress = FALSE,
       spatial_filter = FALSE,
       spatial_sort = FALSE
-    )
+    ))
   })
   
   # Should return row with NA
@@ -582,4 +582,64 @@ test_that("invalid batch_size parameter is rejected", {
       progress = FALSE
     )
   )
+})
+
+test_that("server readiness polling - success after delay", {
+  # Mock success on 2nd attempt
+  calls <- 0
+  mock_fn <- function(req) {
+    calls <<- calls + 1
+    if (calls == 1) stop("Server not ready")
+    httr2::response(status_code = 200)
+  }
+  
+  httr2::with_mocked_responses(mock_fn, {
+    # Use small timeout and interval for testing
+    expect_invisible(rmotis:::.wait_for_server("http://localhost:8080", timeout = 5, poll_interval = 0.01))
+  })
+  expect_equal(calls, 2)
+})
+
+test_that("server readiness polling - timeout warning", {
+  mock_fn <- function(req) stop("Server down")
+  
+  httr2::with_mocked_responses(mock_fn, {
+    expect_warning(
+      rmotis:::.wait_for_server("http://localhost:8080", timeout = 0.2, poll_interval = 0.05),
+      "did not respond"
+    )
+  })
+})
+
+test_that("motis_one_to_many_parallel calls server polling", {
+  one <- data.frame(lat = 59.3, lon = 18.0, id = "O1")
+  many <- data.frame(lat = 60.0, lon = 18.5, id = "D1")
+  
+  calls <- 0
+  mock_fn <- function(req) {
+    calls <<- calls + 1
+    # First call is readiness check (root path), second is API call
+    if (grepl("api/v1/one-to-many", req$url)) {
+      return(httr2::response(
+        status_code = 200,
+        headers = list(`Content-Type` = "application/json"),
+        body = charToRaw(jsonlite::toJSON(list(list(duration = 100)), auto_unbox = TRUE))
+      ))
+    }
+    # Readiness check
+    httr2::response(status_code = 200)
+  }
+  
+  withr::with_options(list(rmotis.wait_for_server = TRUE), { httr2::with_mocked_responses(mock_fn, {
+    motis_one_to_many_parallel(
+      one, many,
+      .server = "http://localhost:8080",
+      progress = FALSE,
+      spatial_filter = FALSE,
+      spatial_sort = FALSE
+    )
+  })})
+  
+  # At least 2 calls: 1 readiness check + 1 API call
+  expect_gte(calls, 2)
 })

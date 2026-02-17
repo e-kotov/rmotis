@@ -118,7 +118,7 @@ motis_one_to_all_txt_1 <- function(
   output_file,
   time = Sys.time(),
   arrive_by = FALSE,
-  max_travel_time = 90,
+  max_travel_time = 90, quiet = FALSE,
   ...
 ) {
   # --- 1. Argument Validation ---
@@ -166,7 +166,7 @@ motis_one_to_all_txt_1 <- function(
 
   # --- 4. Write to File and Return ---
   writeLines(request_string, con = output_file)
-  message(
+  if (!quiet) message(
     "Successfully wrote 1 request to '",
     output_file,
     "'."

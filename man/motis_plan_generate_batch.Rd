@@ -15,7 +15,8 @@ motis_plan_generate_batch(
   all_pairs = FALSE,
   ...,
   append = FALSE,
-  api_endpoint = "/api/v1/plan"
+  api_endpoint = "/api/v1/plan",
+  quiet = FALSE
 )
 }
 \arguments{

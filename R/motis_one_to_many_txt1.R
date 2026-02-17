@@ -147,7 +147,7 @@ motis_one_to_many_txt_1 <- function(
   mode = c("WALK", "BIKE", "CAR"),
   arrive_by = FALSE,
   max = 7200, # 2 hours in seconds
-  maxMatchingDistance = 1000, # 1 km
+  maxMatchingDistance = 1000, quiet = FALSE,
   ...
 ) {
   # --- 1. Argument Validation ---
@@ -201,7 +201,7 @@ motis_one_to_many_txt_1 <- function(
 
   # --- 4. Write to File and Return ---
   writeLines(request_string, con = output_file)
-  message(
+  if (!quiet) message(
     "Successfully wrote 1 request to '",
     output_file,
     "'."
