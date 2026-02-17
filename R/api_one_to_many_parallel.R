@@ -363,24 +363,25 @@ motis_one_to_many_parallel <- function(
     # Build POST request body
     body_params <- list(
       one = origin_place,
-      many = paste(filtered_many_places, collapse = ","),
+      many = filtered_many_places,
       mode = mode,
       arriveBy = arrive_by,
       max = max,
-      maxMatchingDistance = maxMatchingDistance
+      maxMatchingDistance = maxMatchingDistance,
+      elevationCosts = dots$elevationCosts %||% "NONE"
     )
     
-    # Add additional parameters from dots
+    # Add additional parameters from dots (excluding elevationCosts which is already set)
+    dots$elevationCosts <- NULL
     if (length(dots) > 0) {
-      body_params <- c(body_params, dots)
+      body_params <- utils::modifyList(body_params, dots)
     }
     
     # Build httr2 request
     req <- httr2::request(.server) |>
       httr2::req_url_path_append("api/v1/one-to-many") |>
       httr2::req_method("POST") |>
-      httr2::req_headers("Content-Type" = "application/x-www-form-urlencoded") |>
-      httr2::req_body_form(!!!body_params) |>
+      httr2::req_body_json(body_params) |>
       # Add retry logic
       httr2::req_retry(max_tries = getOption("rmotis.retry_max_tries", 3), backoff = getOption("rmotis.retry_backoff", ~ 2)) |>
       httr2::req_timeout(600)
@@ -419,19 +420,34 @@ motis_one_to_many_parallel <- function(
     resp <- responses[[i]]
     meta <- valid_metadata[[i]]
     
-    # Check for errors - use tryCatch as resp may not be a proper response object
-    is_error <- tryCatch(
-      httr2::resp_is_error(resp),
-      error = function(e) TRUE  # If check fails, treat as error
-    )
+    # Check for errors - handle both httr2 error objects and response objects
+    is_error_obj <- inherits(resp, "httr2_error")
     
-    if (is_error) {
-      status_msg <- tryCatch(
-        httr2::resp_status_desc(resp),
-        error = function(e) "Unknown error"
-      )
+    if (is_error_obj) {
+      # resp is an error object (httr2_failure/httr2_error)
+      # Extract the error message from the condition
+      status_msg <- conditionMessage(resp)
       warning(sprintf("Request failed for origin %s: %s",
                       meta$origin_id, status_msg),
+              call. = FALSE)
+      # Return NA results for this origin
+      results_list[[i]] <- data.frame(
+        from_id = if (arrive_by) meta$dest_ids else meta$origin_id,
+        to_id = if (arrive_by) meta$origin_id else meta$dest_ids,
+        duration_s = NA_real_,
+        distance_m = NA_real_,
+        stringsAsFactors = FALSE
+      )
+      next
+    }
+    
+    # resp is a proper response object - check for HTTP errors
+    is_http_error <- httr2::resp_is_error(resp)
+    
+    if (is_http_error) {
+      status_msg <- httr2::resp_status_desc(resp)
+      warning(sprintf("Request failed for origin %s: HTTP %s %s",
+                      meta$origin_id, httr2::resp_status(resp), status_msg),
               call. = FALSE)
       # Return NA results for this origin
       results_list[[i]] <- data.frame(

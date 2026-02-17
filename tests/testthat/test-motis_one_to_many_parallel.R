@@ -643,3 +643,54 @@ test_that("motis_one_to_many_parallel calls server polling", {
   # At least 2 calls: 1 readiness check + 1 API call
   expect_gte(calls, 2)
 })
+
+test_that("request body includes required elevationCosts parameter", {
+  one <- data.frame(lat = 59.3, lon = 18.0, id = "O1")
+  many <- data.frame(lat = 60.0, lon = 18.5, id = "D1")
+  
+  captured_req <- NULL
+  mock_fn <- function(req) {
+    # Capture the API request for inspection
+    if (grepl("api/v1/one-to-many", req$url)) {
+      captured_req <<- req
+      return(httr2::response(
+        status_code = 200,
+        headers = list(`Content-Type` = "application/json"),
+        body = charToRaw(jsonlite::toJSON(list(list(duration = 100, distance = 1000)), auto_unbox = TRUE))
+      ))
+    }
+    # Readiness check
+    httr2::response(status_code = 200)
+  }
+  
+  withr::with_options(list(rmotis.wait_for_server = FALSE), {
+    httr2::with_mocked_responses(mock_fn, {
+      motis_one_to_many_parallel(
+        one, many,
+        mode = "CAR",
+        .server = "http://localhost:8080",
+        progress = FALSE,
+        spatial_filter = FALSE,
+        spatial_sort = FALSE
+      )
+    })
+  })
+  
+  # Verify request was captured
+  expect_true(!is.null(captured_req), "Request should be captured")
+  
+  # Extract body data from request object
+  body_data <- captured_req[["body"]][["data"]]
+  expect_true(!is.null(body_data), "Request should have JSON body data")
+  
+  # Verify elevationCosts is present (required by MOTIS server)
+  expect_true("elevationCosts" %in% names(body_data), "elevationCosts should be in request body")
+  expect_equal(body_data$elevationCosts, "NONE")
+  
+  # Verify other required fields
+  expect_true("one" %in% names(body_data))
+  expect_true("many" %in% names(body_data))
+  expect_true("mode" %in% names(body_data))
+  expect_equal(body_data$mode, "CAR")
+})
+
