@@ -28,6 +28,8 @@ Imports:
     tidyr,
     yaml
 Suggests: 
+    arrow,
+    data.table,
     DT,
     jsonlite,
     mapgl,

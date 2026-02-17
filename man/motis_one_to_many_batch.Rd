@@ -21,7 +21,9 @@ motis_one_to_many_batch(
   echo = TRUE,
   output_dir = tempdir(),
   keep_files = FALSE,
-  cores = 1L
+  spatial_filter = TRUE,
+  spatial_sort = TRUE,
+  split = 1L
 )
 }
 \arguments{
@@ -66,9 +68,18 @@ the \verb{data/} subfolder with imported routing data).}
 \item{keep_files}{Logical. If \code{TRUE}, the temporary batch files are kept
 after execution. Defaults to \code{FALSE}.}
 
-\item{cores}{Integer. The number of cores to use for parallel processing.
-The \code{many} destinations will be split into this many chunks, creating
-additional query lines that MOTIS can process in parallel. Defaults to \code{1}.}
+\item{spatial_filter}{Logical. If \code{TRUE} (default), pre-filter destinations
+per origin to a bounding box based on \code{max} travel time and typical mode
+speed. Reduces match memory and I/O for unreachable destinations.}
+
+\item{spatial_sort}{Logical. If \code{TRUE} (default), sort origins by latitude
+before generating queries. Improves MOTIS graph cache locality.}
+
+\item{split}{Integer. \strong{Experimental}. Split destinations into this many
+chunks, creating additional query lines. While this enables parallel
+processing, it causes redundant Dijkstra sweeps from the same origin
+(N× CPU work for N× speed). May be useful in low-memory scenarios.
+Defaults to \code{1} (no splitting).}
 }
 \value{
 A data.frame with columns \code{from_id}, \code{to_id}, \code{duration_s}, and

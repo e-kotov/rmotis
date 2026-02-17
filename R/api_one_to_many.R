@@ -438,9 +438,16 @@ motis_one_to_many_read_batch <- function(
 #'   (query, metadata, response). Defaults to `tempdir()`.
 #' @param keep_files Logical. If `TRUE`, the temporary batch files are kept
 #'   after execution. Defaults to `FALSE`.
-#' @param cores Integer. The number of cores to use for parallel processing.
-#'   The `many` destinations will be split into this many chunks, creating
-#'   additional query lines that MOTIS can process in parallel. Defaults to `1`.
+#' @param spatial_filter Logical. If `TRUE` (default), pre-filter destinations
+#'   per origin to a bounding box based on `max` travel time and typical mode
+#'   speed. Reduces match memory and I/O for unreachable destinations.
+#' @param spatial_sort Logical. If `TRUE` (default), sort origins by latitude
+#'   before generating queries. Improves MOTIS graph cache locality.
+#' @param split Integer. **Experimental**. Split destinations into this many
+#'   chunks, creating additional query lines. While this enables parallel
+#'   processing, it causes redundant Dijkstra sweeps from the same origin
+#'   (N× CPU work for N× speed). May be useful in low-memory scenarios.
+#'   Defaults to `1` (no splitting).
 #'
 #' @return A data.frame with columns `from_id`, `to_id`, `duration_s`, and
 #'   optionally `distance_m`. Returns `invisible(NULL)` when `output_callback`
@@ -464,7 +471,9 @@ motis_one_to_many_batch <- function(
   echo = TRUE,
   output_dir = tempdir(),
   keep_files = FALSE,
-  cores = 1L
+  spatial_filter = TRUE,
+  spatial_sort = TRUE,
+  split = 1L
 ) {
   mode <- match.arg(mode)
   data_dir <- normalizePath(data_dir, mustWork = TRUE)
@@ -486,23 +495,46 @@ motis_one_to_many_batch <- function(
   # Format coordinates
   one_places <- .format_place_onemany(one)
   many_places_vec <- .format_place_onemany(many)
-  
-  # Split many destinations into chunks based on cores
   n_many <- length(many_places_vec)
-  cores <- max(1L, as.integer(cores))
-  if (cores > n_many) cores <- n_many # Don't use more cores than destinations
-  
-  # Create split indices
-  if (cores <= 1L) {
-    many_indices <- list(seq_len(n_many))
-  } else {
-    # Distribute indices as evenly as possible
-    many_indices <- split(seq_len(n_many), sort(seq_len(n_many) %% cores))
-  }
   
   # Extract IDs
   one_ids <- .get_ids(one, id_col = one_id_col)
   many_ids <- .get_ids(many, id_col = many_id_col)
+  
+  # Extract coordinates if needed for spatial operations
+  if (spatial_sort || spatial_filter) {
+    one_coords <- .extract_coords(one)
+  }
+  
+  # Spatial sort origins by latitude
+  if (spatial_sort) {
+    sort_idx <- order(one_coords[, "lat"])
+    one_places <- one_places[sort_idx]
+    one_ids <- one_ids[sort_idx]
+  }
+  
+  # Prepare spatial filter if enabled
+  if (spatial_filter) {
+    many_coords <- .extract_coords(many)
+    # Speed estimates (km/h)
+    max_speed <- switch(mode, WALK = 6, BIKE = 20, CAR = 130)
+    # Max travel distance in km with 20% buffer
+    max_radius_km <- (max * max_speed / 3600) * 1.2
+    # Convert to degrees (rough approximation: 1 degree ≈ 111 km)
+    max_radius_deg <- max_radius_km / 111.0
+  }
+  
+  # Split many destinations into chunks based on split parameter
+  split <- max(1L, as.integer(split))
+  if (split > n_many) split <- n_many
+  
+  # Create split indices
+  if (split <= 1L) {
+    many_indices <- list(seq_len(n_many))
+  } else {
+    # Distribute indices as evenly as possible
+    many_indices <- base::split(seq_len(n_many), sort(seq_len(n_many) %% split))
+  }
 
   # Validate with first origin (dry-run)
   tryCatch({
@@ -536,10 +568,46 @@ motis_one_to_many_batch <- function(
   
   line_idx <- 0L
   for (i in seq_len(n_origins)) {
-    for (k in seq_len(n_chunks)) {
-      idx <- many_indices[[k]]
-      many_chk_str <- paste(many_places_vec[idx], collapse = ",")
-      many_ids_chk <- many_ids[idx]
+    # Apply spatial filter for this origin if enabled
+    if (spatial_filter) {
+      origin_lat <- one_coords[i, "lat"]
+      origin_lon <- one_coords[i, "lon"]
+      
+      # Bounding box filter
+      lat_diff <- abs(many_coords[, "lat"] - origin_lat)
+      lon_diff <- abs(many_coords[, "lon"] - origin_lon)
+      keep_idx <- which(lat_diff <= max_radius_deg & lon_diff <= max_radius_deg)
+      
+      # Filter destinations for this origin only
+      if (length(keep_idx) == 0) {
+        # No destinations in range, skip this origin entirely
+        next
+      }
+      
+      # Use filtered destinations for this origin
+      origin_many_places <- many_places_vec[keep_idx]
+      origin_many_ids <- many_ids[keep_idx]
+      origin_n_many <- length(origin_many_places)
+      
+      # Recalculate split indices for filtered destinations
+      if (split <= 1L) {
+        origin_many_indices <- list(seq_len(origin_n_many))
+      } else {
+        origin_split <- min(split, origin_n_many)
+        origin_many_indices <- base::split(seq_len(origin_n_many), 
+                                           sort(seq_len(origin_n_many) %% origin_split))
+      }
+    } else {
+      # No filtering, use all destinations
+      origin_many_places <- many_places_vec
+      origin_many_ids <- many_ids
+      origin_many_indices <- many_indices
+    }
+    
+    for (k in seq_along(origin_many_indices)) {
+      idx <- origin_many_indices[[k]]
+      many_chk_str <- paste(origin_many_places[idx], collapse = ",")
+      many_ids_chk <- origin_many_ids[idx]
       
       line_idx <- line_idx + 1L
       
@@ -559,12 +627,18 @@ motis_one_to_many_batch <- function(
     }
   }
 
+  # Remove empty lines (caused by skipped origins in spatial filter)
+  non_empty <- nzchar(query_lines)
+  query_lines <- query_lines[non_empty]
+  meta_lines <- meta_lines[non_empty]
+  actual_lines <- length(query_lines)
+
   writeLines(query_lines, query_file)
   writeLines(meta_lines, meta_file)
 
   if (echo) {
-    .print_file_info("Query file", query_file, n_lines = total_lines)
-    .print_file_info("Metadata file", meta_file, n_lines = total_lines)
+    .print_file_info("Query file", query_file, n_lines = actual_lines)
+    .print_file_info("Metadata file", meta_file, n_lines = actual_lines)
   }
 
   # Execute MOTIS batch

@@ -587,3 +587,71 @@ debug_msg <- function(...) {
     }
   }
 }
+
+#' Extract coordinate matrix from various input types
+#' @param place Input object (sf, data.frame, matrix, character)
+#' @return Numeric matrix with 2 columns (lat, lon) and n rows
+#' @noRd
+.extract_coords <- function(place) {
+  # sf: use st_coordinates and swap X/Y to lat/lon
+  if (inherits(place, "sf")) {
+    rlang::check_installed("sf")
+    coords <- sf::st_coordinates(place)
+    
+    # Handle potential multipoint/complex geometries by taking centroids
+    if (nrow(coords) != nrow(place)) {
+      coords <- sf::st_coordinates(sf::st_centroid(place))
+    }
+    
+    # X = lon, Y = lat
+    return(cbind(lat = coords[, "Y"], lon = coords[, "X"]))
+  }
+  
+  # data.frame: find lat/lon columns
+  if (is.data.frame(place)) {
+    p_names <- tolower(names(place))
+    lat_col <- which(p_names %in% c("lat", "latitude"))
+    lon_col <- which(p_names %in% c("lon", "lng", "longitude"))
+    
+    if (length(lat_col) == 1 && length(lon_col) == 1) {
+      lat <- as.numeric(place[[lat_col]])
+      lon <- as.numeric(place[[lon_col]])
+      return(cbind(lat = lat, lon = lon))
+    }
+    
+    stop("Data frame must contain coordinate columns ('lat', 'lon').", call. = FALSE)
+  }
+  
+  # matrix: assume 2 columns, detect if named
+  if (is.matrix(place) && is.numeric(place)) {
+    if (ncol(place) != 2) {
+      stop("Matrix must have 2 columns for coordinates.", call. = FALSE)
+    }
+    
+    cnames <- tolower(colnames(place))
+    if (!is.null(cnames) && all(c("lon", "lat") %in% cnames)) {
+      return(cbind(lat = place[, "lat"], lon = place[, "lon"]))
+    }
+    
+    # Assume column order is (lon, lat) or (lat, lon) based on values
+    # Latitude is typically -90 to 90, longitude -180 to 180
+    col1_range <- range(place[, 1], na.rm = TRUE)
+    if (all(col1_range >= -90 & col1_range <= 90)) {
+      # col1 is latitude
+      return(cbind(lat = place[, 1], lon = place[, 2]))
+    } else {
+      # col1 is longitude
+      return(cbind(lat = place[, 2], lon = place[, 1]))
+    }
+  }
+  
+  # character: parse "lat;lon" strings
+  if (is.character(place)) {
+    parts <- strsplit(place, ";", fixed = TRUE)
+    lats <- vapply(parts, function(p) as.numeric(p[1]), numeric(1))
+    lons <- vapply(parts, function(p) as.numeric(p[2]), numeric(1))
+    return(cbind(lat = lats, lon = lons))
+  }
+  
+  stop("Unsupported input type for coordinate extraction.", call. = FALSE)
+}
