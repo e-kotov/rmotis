@@ -12,6 +12,7 @@ motis_one_to_many_generate_batch(
   arrive_by = FALSE,
   max = 7200,
   maxMatchingDistance = 1000,
+  withDistance = FALSE,
   one_id_col = "id",
   many_id_col = "id",
   ...,
@@ -37,6 +38,9 @@ motis_one_to_many_generate_batch(
 \item{max}{maximum travel time in seconds}
 
 \item{maxMatchingDistance}{maximum matching distance in meters}
+
+\item{withDistance}{Logical. Include distance in the query?
+Defaults to \code{FALSE}.}
 
 \item{one_id_col}{The name of the column in \code{one} to use as the origin
 identifier in the metadata file. Defaults to \code{"id"}. Falls back to

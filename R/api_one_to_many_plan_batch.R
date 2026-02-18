@@ -13,6 +13,8 @@
 #' @param max Maximum travel time in seconds. Defaults to `7200` (2 hours).
 #' @param maxMatchingDistance Maximum map-matching distance in meters.
 #'   Defaults to `1000`.
+#' @param withDistance Logical. Include distance in the output? 
+#'   Defaults to `FALSE`.
 #' @param one_id_col Column name for origin IDs. Defaults to `"id"`.
 #' @param many_id_col Column name for destination IDs. Defaults to `"id"`.
 #' @param ... Additional API parameters passed to the MOTIS one-to-many endpoint.
@@ -57,6 +59,7 @@ motis_one_to_many_plan_batch <- function(
   maxMatchingDistance = 1000,
   one_id_col = "id",
   many_id_col = "id",
+  withDistance = FALSE,
   ...,
   spatial_filter = TRUE,
   spatial_sort = TRUE,
@@ -158,6 +161,7 @@ motis_one_to_many_plan_batch <- function(
       arrive_by = arrive_by,
       max = max,
       maxMatchingDistance = maxMatchingDistance,
+      withDistance = withDistance,
       one_id_col = one_id_col,
       many_id_col = many_id_col,
       ...,

@@ -14,6 +14,7 @@ motis_one_to_many_batch(
   maxMatchingDistance = 1000,
   one_id_col = "id",
   many_id_col = "id",
+  withDistance = FALSE,
   ...,
   motis_path = NULL,
   chunk_size = 10000L,
@@ -49,7 +50,10 @@ the \verb{data/} subfolder with imported routing data).}
 
 \item{many_id_col}{Column name in \code{many} to use as destination identifiers.}
 
-\item{...}{Additional MOTIS API parameters (e.g., \code{withDistance = TRUE}).}
+\item{withDistance}{Logical. Include distance in the output?
+Defaults to \code{FALSE}.}
+
+\item{...}{Additional MOTIS API parameters (e.g., \code{elevationCosts}).}
 
 \item{motis_path}{Path to the directory containing the MOTIS binary, or
 \code{NULL} to use the system PATH.}

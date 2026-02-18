@@ -6,33 +6,35 @@
 \usage{
 motis_one_to_many(
   one,
-  one_id_col = "id",
   many,
+  one_id_col = "id",
   many_id_col = "id",
   mode = c("WALK", "BIKE", "CAR"),
   arrive_by = FALSE,
   max = 7200,
   maxMatchingDistance = 1000,
+  withDistance = FALSE,
   ...,
-  output = c("data.frame", "raw_list")
+  output = c("data.frame", "raw_list"),
+  parallel = TRUE,
+  backend = c("auto", "httr2", "mirai"),
+  batch_size = 16L,
+  output_path = NULL,
+  checkpoint_file = NULL,
+  progress = TRUE
 )
 }
 \arguments{
-\item{one}{The single origin (when \code{arrive_by = FALSE}) or destination
-(when \code{arrive_by = TRUE}). Can be a data frame/tibble with coordinate
-columns, an \code{sf} object with a single POINT geometry, or a numeric
-vector/matrix (\code{lon}, \code{lat}).}
+\item{one}{Origin(s). Can be a data frame/tibble with coordinate columns,
+an \code{sf} object, or a vector/matrix of coordinates.}
+
+\item{many}{Destination(s). Same format as \code{one}.}
 
 \item{one_id_col}{The name of the column in \code{one} to use for identifying
 the point in the output. Defaults to \code{"id"}.}
 
-\item{many}{The multiple destinations (when \code{arrive_by = FALSE}) or origins
-(when \code{arrive_by = TRUE}). Can be a data frame/tibble with coordinate
-columns, an \code{sf} object with POINT geometry, or a numeric matrix
-(\code{lon}, \code{lat}).}
-
 \item{many_id_col}{The name of the column in \code{many} to use for identifying
-column, a sequence of numbers is used.}
+the point in the output. Defaults to \code{"id"}.}
 
 \item{mode}{The routing profile to use. Defaults to \code{"WALK"}.}
 
@@ -41,7 +43,10 @@ column, a sequence of numbers is used.}
 
 \item{max}{maximum travel time in seconds}
 
-\item{maxMatchingDistance}{maximum matching distance in meters to match geo coordinates to the street network}
+\item{maxMatchingDistance}{maximum matching distance in meters}
+
+\item{withDistance}{Logical. Include distance in the output?
+Defaults to \code{FALSE}.}
 
 \item{...}{
   Arguments passed on to \code{\link[motis.client:mc_oneToMany]{motis.client::mc_oneToMany}}
@@ -66,10 +71,6 @@ Elevation cost profiles are currently used by following street modes:
 }
 
 Allowed values: NONE, LOW, HIGH.}
-    \item{\code{withDistance}}{Optional. Default is \code{false}.
-If true, the response includes the distance in meters
-for each path. This requires path reconstruction and
-is slower than duration-only queries.}
     \item{\code{.return_as}}{A string specifying the return format. Defaults to 'list'. Options are 'list' for a parsed R list, 'raw' for the raw httr2_response object, or 'string' for the raw JSON string.}
     \item{\code{.json_parser}}{A string specifying which parser to use when .return_as = 'list'. Defaults to 'RcppSimdJson' (faster) or 'jsonlite'. Beware that their output may differ slightly.}
     \item{\code{.headers}}{A named list of extra HTTP headers to add to the request. If no 'Accept' header is provided anywhere, 'Accept: \emph{/}' will be sent by default.}
@@ -86,27 +87,36 @@ is slower than duration-only queries.}
 
 \item{output}{The desired output format. One of:
 \itemize{
-\item \code{"data.frame"} (default): A tidy data frame with travel times and distances.
-\item \code{"raw_list"}: The raw parsed JSON response as a list.
+\item \code{"data.frame"} (default): A tidy data frame.
+\item \code{"raw_list"}: The raw parsed JSON response (only for non-parallel execution).
 }}
+
+\item{parallel}{Logical. Enable parallel processing? Defaults to \code{FALSE}.
+If \code{TRUE}, \code{output_file}, \code{batch_size}, and \code{backend} are used.}
+
+\item{backend}{Parallel backend:
+\itemize{
+\item \code{"auto"} (default): Uses \code{"mirai"} if available and daemons are set up, otherwise \code{"httr2"}.
+\item \code{"httr2"}: Low-overhead threaded parallelism. Best for small-latency, small-payload requests.
+\item \code{"mirai"}: \strong{Recommended for large workloads}. Uses separate R processes.
+Slightly higher overhead, but parses large JSON responses in parallel, avoiding the
+main R thread bottleneck. Requires \code{mirai::daemons()}.
+}}
+
+\item{batch_size}{Number of origins to process in parallel per batch.}
+
+\item{output_path}{Optional path to write results incrementally (\code{.csv} or \strong{Directory} of \code{.parquet} files).}
+
+\item{checkpoint_file}{Optional path for checkpointing progress.}
+
+\item{progress}{Logical. Display progress bar/messages?}
 }
 \value{
 Depending on the \code{output} parameter, a \code{data.frame} or a list.
-The data frame will contain columns:
-\itemize{
-\item \code{from_id}: identifier of the origin
-\item \code{to_id}: identifier of the destination
-\item \code{duration_s}: travel time in seconds
-\item \code{distance_m}: travel distance in meters (only included if \code{distance = TRUE} in \code{...})
-}
+If \code{output_path} is specified, returns the path invisibly.
 }
 \description{
-This function is a user-friendly wrapper for the MOTIS \code{one-to-many} street
-routing API. It computes travel time and distance from a single origin to
-multiple destinations (or from multiple origins to a single destination)
-using a specified travel mode (e.g., walking, cycling, or driving).
-}
-\details{
-This function uses a \code{POST} request to the MOTIS server, allowing for a large
-number of destinations (1000+) without hitting URL length limitations.
+This function computes travel time and distance from a single origin to
+multiple destinations (or vice versa). It supports both simple single-request
+execution and robust parallel execution for large datasets.
 }

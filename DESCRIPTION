@@ -33,6 +33,7 @@ Suggests:
     DT,
     jsonlite,
     mapgl,
+    mirai,
     sf,
     sfheaders,
     shiny,

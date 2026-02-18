@@ -1,156 +1,120 @@
+
 #' Calculate one-to-many or many-to-one street-level routes
 #'
-#' This function is a user-friendly wrapper for the MOTIS `one-to-many` street
-#' routing API. It computes travel time and distance from a single origin to
-#' multiple destinations (or from multiple origins to a single destination)
-#' using a specified travel mode (e.g., walking, cycling, or driving).
+#' This function computes travel time and distance from a single origin to
+#' multiple destinations (or vice versa). It supports both simple single-request
+#' execution and robust parallel execution for large datasets.
 #'
-#' This function uses a `POST` request to the MOTIS server, allowing for a large
-#' number of destinations (1000+) without hitting URL length limitations.
-#'
-#' @param one The single origin (when `arrive_by = FALSE`) or destination
-#'   (when `arrive_by = TRUE`). Can be a data frame/tibble with coordinate
-#'   columns, an `sf` object with a single POINT geometry, or a numeric
-#'   vector/matrix (`lon`, `lat`).
-#' @param many The multiple destinations (when `arrive_by = FALSE`) or origins
-#'   (when `arrive_by = TRUE`). Can be a data frame/tibble with coordinate
-#'   columns, an `sf` object with POINT geometry, or a numeric matrix
-#'   (`lon`, `lat`).
-#' @param many_id_col The name of the column in `many` to use for identifying
-#'   column, a sequence of numbers is used.
+#' @param one Origin(s). Can be a data frame/tibble with coordinate columns,
+#'   an `sf` object, or a vector/matrix of coordinates.
+#' @param many Destination(s). Same format as `one`.
 #' @param one_id_col The name of the column in `one` to use for identifying
 #'   the point in the output. Defaults to `"id"`.
-#' @param max maximum travel time in seconds
-#' @param maxMatchingDistance maximum matching distance in meters to match geo coordinates to the street network
+#' @param many_id_col The name of the column in `many` to use for identifying
+#'   the point in the output. Defaults to `"id"`.
 #' @param mode The routing profile to use. Defaults to `"WALK"`.
 #' @param arrive_by Logical. If `FALSE` (the default), calculates routes from
 #'   `one` to `many`. If `TRUE`, calculates routes from `many` to `one`.
+#' @param max maximum travel time in seconds
+#' @param maxMatchingDistance maximum matching distance in meters
+#' @param withDistance Logical. Include distance in the output? 
+#'   Defaults to `FALSE`.
 #' @param output The desired output format. One of:
-#'   - `"data.frame"` (default): A tidy data frame with travel times and distances.
-#'   - `"raw_list"`: The raw parsed JSON response as a list.
-#' @inheritDotParams motis.client::mc_oneToMany -one -many -mode -arriveBy -max -maxMatchingDistance -.endpoint
+#'   - `"data.frame"` (default): A tidy data frame.
+#'   - `"raw_list"`: The raw parsed JSON response (only for non-parallel execution).
+#' @param parallel Logical. Enable parallel processing? Defaults to `FALSE`.
+#'   If `TRUE`, `output_file`, `batch_size`, and `backend` are used.
+#' @param backend Parallel backend:
+#'   - `"auto"` (default): Uses `"mirai"` if available and daemons are set up, otherwise `"httr2"`.
+#'   - `"httr2"`: Low-overhead threaded parallelism. Best for small-latency, small-payload requests.
+#'   - `"mirai"`: **Recommended for large workloads**. Uses separate R processes.
+#'     Slightly higher overhead, but parses large JSON responses in parallel, avoiding the
+#'     main R thread bottleneck. Requires `mirai::daemons()`.
+#' @param batch_size Number of origins to process in parallel per batch.
+#' @param output_path Optional path to write results incrementally (`.csv` or **Directory** of `.parquet` files).
+#' @param checkpoint_file Optional path for checkpointing progress.
+#' @param progress Logical. Display progress bar/messages?
+#' @inheritDotParams motis.client::mc_oneToMany -one -many -mode -arriveBy -max -maxMatchingDistance -withDistance -.endpoint
+#'
 #' @return Depending on the `output` parameter, a `data.frame` or a list.
-#'   The data frame will contain columns:
-#'   - `from_id`: identifier of the origin
-#'   - `to_id`: identifier of the destination
-#'   - `duration_s`: travel time in seconds
-#'   - `distance_m`: travel distance in meters (only included if `distance = TRUE` in `...`)
+#'   If `output_path` is specified, returns the path invisibly.
 #' @export
 #' @importFrom httr2 req_perform resp_body_json
 #' @importFrom dplyr bind_rows
-#' @importFrom rlang check_installed
+#' @importFrom rlang check_installed is_installed
 motis_one_to_many <- function(
   one,
-  one_id_col = "id",
   many,
+  one_id_col = "id",
   many_id_col = "id",
   mode = c("WALK", "BIKE", "CAR"),
   arrive_by = FALSE,
   max = 7200, # 2 hours in seconds
   maxMatchingDistance = 1000, # 1 km
+  withDistance = FALSE,
   ...,
-  output = c("data.frame", "raw_list")
-) {
+  output = c("data.frame", "raw_list"),
+  parallel = TRUE,
+  backend = c("auto", "httr2", "mirai"),
+  batch_size = 16L,
+  output_path = NULL,
+  checkpoint_file = NULL,
+  progress = TRUE
+)  {
   # --- 1. Argument and Input Validation ---
   output <- match.arg(output)
   mode <- match.arg(mode)
-  stopifnot("'one' must be a single location" = NROW(one) == 1)
-
-  # --- 2. Format Inputs ---
-  one_place <- .format_place_onemany(one)
-  many_places_vec <- .format_place_onemany(many)
-
-  # --- 3. Build Request Body ---
-  dots <- list(...)
-  user_server <- dots[[".server"]]
-  dots[c("one", "many", "many_id_col", "mode", "arrive_by", "output", ".server")] <- NULL
-
-  # Collapse any vector arguments in dots (though POST usually handles JSON lists better)
-  # But for consistency with MOTIS params, we follow the schema.
+  backend <- match.arg(backend)
   
-  body_params <- list(
-    one = unname(one_place),
-    many = unname(many_places_vec),
-    mode = unname(mode),
-    arriveBy = unname(arrive_by),
-    max = unname(max),
-    maxMatchingDistance = unname(maxMatchingDistance),
-    elevationCosts = dots$elevationCosts %||% "NONE"
-  )
-  dots$elevationCosts <- NULL
+  # Format inputs to "lat;lon" strings
+  one_places <- .format_place_onemany(one, id_col = one_id_col)
+  many_places_vec <- .format_place_onemany(many, id_col = many_id_col)
   
-  # Merge dots into body
-  if (length(dots) > 0) {
-    body_params <- utils::modifyList(body_params, dots)
+  # --- 2. Dispatch Logic ---
+  
+  # Determine if we can use the simple path (single origin, no fancy features)
+  # Determine if we can use the simple path (single origin, no fancy features)
+  # Simple path = 1 origin AND no parallel requested AND no file streaming AND no checkpointing
+  is_simple <- !parallel && length(one_places) == 1 && is.null(output_path) && is.null(checkpoint_file)
+  
+  if (is_simple) {
+    return(.motis_one_to_many_simple(
+      one_place = one_places,
+      many_places_vec = many_places_vec,
+      one = one, many = many, # pass for ID extraction
+      one_id_col = one_id_col, many_id_col = many_id_col,
+      mode = mode, arrive_by = arrive_by,
+      max = max, maxMatchingDistance = maxMatchingDistance,
+      withDistance = withDistance,
+      output = output,
+      ...
+    ))
+  } else {
+    if (output == "raw_list") {
+      warning("output='raw_list' is not supported in parallel/robust mode. returning data.frame.", call. = FALSE)
+    }
+    
+    return(.motis_one_to_many_calc(
+      one_places = one_places,
+      many_places_vec = many_places_vec,
+      one = one, 
+      many = many,
+      one_id_col = one_id_col, 
+      many_id_col = many_id_col,
+      mode = mode,
+      arrive_by = arrive_by,
+      max = max,
+      maxMatchingDistance = maxMatchingDistance,
+      withDistance = withDistance,
+      dots = list(...), # Capture dots
+      backend = backend,
+      batch_size = batch_size,
+      output_path = output_path,
+      checkpoint_file = checkpoint_file,
+      progress = progress,
+      parallel = parallel
+    ))
   }
-
-  server_url <- user_server %||% .get_server_url()
-  url <- paste0(sub("/$", "", server_url), "/api/v1/one-to-many")
-
-  # --- 4. Perform POST Request ---
-  req <- httr2::request(url) |>
-    httr2::req_method("POST") |>
-    httr2::req_body_json(body_params) |>
-    httr2::req_retry(max_tries = 3)
-
-  resp <- tryCatch({
-    httr2::req_perform(req)
-  }, error = function(e) {
-    stop("MOTIS one-to-many request failed: ", e$message, call. = FALSE)
-  })
-
-  # --- 5. Process and Parse Response ---
-  parsed_response <- httr2::resp_body_json(resp)
-
-  if (output == "raw_list") return(parsed_response)
-
-  if (length(parsed_response) == 0) {
-    empty_df <- data.frame(
-      from_id = character(0),
-      to_id = character(0),
-      duration_s = numeric(0)
-    )
-    if ("distance" %in% names(dots) && isTRUE(dots$distance)) {
-      empty_df$distance_m <- numeric(0)
-    }
-    return(empty_df)
-  }
-
-  one_id <- .get_ids(one, id_col = one_id_col)
-  many_ids <- .get_ids(many, id_col = many_id_col)
-
-  # Process responses while ensuring alignment with input many_ids
-  res_list <- lapply(seq_along(parsed_response), function(i) {
-    item <- parsed_response[[i]]
-    if (length(item) == 0) {
-      df <- data.frame(one_id = one_id, many_id = many_ids[i], duration = NA_real_)
-    } else {
-      df <- as.data.frame(item)
-      df$one_id <- one_id
-      df$many_id <- many_ids[i]
-    }
-    
-    # Rename according to arrive_by
-    if (!arrive_by) {
-      names(df)[names(df) == "one_id"] <- "from_id"
-      names(df)[names(df) == "many_id"] <- "to_id"
-    } else {
-      names(df)[names(df) == "one_id"] <- "to_id"
-      names(df)[names(df) == "many_id"] <- "from_id"
-    }
-    
-    # Standardize duration and distance names
-    if ("duration" %in% names(df)) names(df)[names(df) == "duration"] <- "duration_s"
-    if ("distance" %in% names(df)) names(df)[names(df) == "distance"] <- "distance_m"
-    
-    # Reorder columns
-    cols <- c("from_id", "to_id", "duration_s", "distance_m")
-    df <- df[, intersect(cols, names(df)), drop = FALSE]
-    
-    df
-  })
-
-  dplyr::bind_rows(res_list)
 }
 
 #' Generate MOTIS Batch Query File for One-to-Many
@@ -171,6 +135,8 @@ motis_one_to_many <- function(
 #'   `one` to `many`. If `TRUE`, calculates routes from `many` to `one`.
 #' @param max maximum travel time in seconds
 #' @param maxMatchingDistance maximum matching distance in meters
+#' @param withDistance Logical. Include distance in the query? 
+#'   Defaults to `FALSE`.
 #' @param one_id_col The name of the column in `one` to use as the origin
 #'   identifier in the metadata file. Defaults to `"id"`. Falls back to
 #'   sequential row numbers if the column is not found.
@@ -191,6 +157,7 @@ motis_one_to_many_generate_batch <- function(
   arrive_by = FALSE,
   max = 7200,
   maxMatchingDistance = 1000,
+  withDistance = FALSE,
   one_id_col = "id",
   many_id_col = "id",
   ...,
@@ -221,6 +188,7 @@ motis_one_to_many_generate_batch <- function(
         arriveBy = arrive_by,
         max = max,
         maxMatchingDistance = maxMatchingDistance,
+        withDistance = withDistance,
         .build_only = TRUE,
         .server = "http://localhost:8080"
       ),
@@ -237,6 +205,7 @@ motis_one_to_many_generate_batch <- function(
     arrive_by = arrive_by,
     max = max,
     maxMatchingDistance = maxMatchingDistance,
+    withDistance = withDistance,
     dots = dots,
     api_endpoint = api_endpoint
   )
@@ -426,7 +395,9 @@ motis_one_to_many_read_batch <- function(
 #' @param maxMatchingDistance Maximum matching distance in meters.
 #' @param one_id_col Column name in `one` to use as origin identifiers.
 #' @param many_id_col Column name in `many` to use as destination identifiers.
-#' @param ... Additional MOTIS API parameters (e.g., `withDistance = TRUE`).
+#' @param withDistance Logical. Include distance in the output? 
+#'   Defaults to `FALSE`.
+#' @param ... Additional MOTIS API parameters (e.g., `elevationCosts`).
 #' @param motis_path Path to the directory containing the MOTIS binary, or
 #'   `NULL` to use the system PATH.
 #' @param chunk_size Number of response lines to process at a time.
@@ -464,6 +435,7 @@ motis_one_to_many_batch <- function(
   maxMatchingDistance = 1000,
   one_id_col = "id",
   many_id_col = "id",
+  withDistance = FALSE,
   ...,
   motis_path = NULL,
   chunk_size = 10000L,
@@ -539,16 +511,16 @@ motis_one_to_many_batch <- function(
   # Validate with first origin (dry-run)
   tryCatch({
     .validate_batch_params(dots)
-    # Validate with first chunk of many
-    many_places_str_chk <- paste(many_places_vec[many_indices[[1]]], collapse = ",")
+    .validate_batch_params(dots)
     do.call(motis.client::mc_oneToMany, c(
       list(
         one = one_places[1L],
-        many = many_places_str_chk,
+        many = paste(many_places_vec[many_indices[[1]]], collapse = ","),
         mode = mode,
         arriveBy = arrive_by,
         max = max,
         maxMatchingDistance = maxMatchingDistance,
+        withDistance = withDistance,
         .build_only = TRUE,
         .server = "http://localhost:8080"
       ),
@@ -618,6 +590,7 @@ motis_one_to_many_batch <- function(
         arrive_by = arrive_by,
         max = max,
         maxMatchingDistance = maxMatchingDistance,
+        withDistance = withDistance,
         dots = dots,
         api_endpoint = "/api/v1/one-to-many"
       )
@@ -678,6 +651,7 @@ motis_one_to_many_batch <- function(
 #' @param arrive_by Logical.
 #' @param max Maximum travel time.
 #' @param maxMatchingDistance Maximum matching distance.
+#' @param withDistance Logical. Include distance in the query?
 #' @param dots Additional named parameters.
 #' @param api_endpoint API endpoint path.
 #' @return A single URL query string.
@@ -689,6 +663,7 @@ motis_one_to_many_batch <- function(
   arrive_by,
   max,
   maxMatchingDistance,
+  withDistance,
   dots,
   api_endpoint
 ) {
@@ -699,7 +674,8 @@ motis_one_to_many_batch <- function(
       mode = mode,
       arriveBy = arrive_by,
       max = max,
-      maxMatchingDistance = maxMatchingDistance
+      maxMatchingDistance = maxMatchingDistance,
+      withDistance = withDistance
     ),
     dots
   )
@@ -803,4 +779,647 @@ motis_one_to_many_batch <- function(
 
   if (is.character(place)) return(unname(place))
   stop("Unsupported input type.", call. = FALSE)
+}
+
+# --- Internal Implementations ---
+
+#' Internal helper: Simple serial execution path
+#' @noRd
+.motis_one_to_many_simple <- function(
+  one_place, many_places_vec,
+  one, many,
+  one_id_col, many_id_col,
+  mode, arrive_by,
+  max, maxMatchingDistance,
+  withDistance,
+  output,
+  ...
+) {
+  dots <- list(...)
+  user_server <- dots[[".server"]]
+  dots[c("one", "many", ".server", "output")] <- NULL 
+  
+  # Manual request construction to avoid motis.client::mc_oneToManyPost bug
+  # The client function captures local 'req' variable into the body payload
+  body_params <- list(
+    one = unname(one_place),
+    many = I(unname(many_places_vec)),
+    mode = unname(mode),
+    arriveBy = unname(arrive_by),
+    max = unname(max),
+    maxMatchingDistance = unname(maxMatchingDistance),
+    elevationCosts = dots$elevationCosts %||% "NONE",
+    withDistance = withDistance
+  )
+  dots$elevationCosts <- NULL
+  if (length(dots) > 0) body_params <- utils::modifyList(body_params, dots)
+  
+  server_url <- user_server %||% .get_server_url()
+  url <- paste0(sub("/$", "", server_url), "/api/v1/one-to-many")
+  
+  req <- httr2::request(url) |>
+    httr2::req_method("POST") |>
+    httr2::req_body_json(body_params) |>
+    httr2::req_retry(max_tries = 3)
+    
+  resp <- tryCatch({
+    httr2::req_perform(req)
+  }, error = function(e) {
+    stop("MOTIS one-to-many request failed: ", e$message, call. = FALSE)
+  })
+  
+  parsed <- httr2::resp_body_json(resp)
+  
+  if (output == "raw_list") return(parsed)
+  
+  # Use .get_ids from helpers.R
+  one_ids <- .get_ids(one, id_col = one_id_col)
+  many_ids <- .get_ids(many, id_col = many_id_col)
+  
+  return(.parse_otm_response(parsed, one_ids[1], many_ids, arrive_by))
+}
+
+#' Internal helper: Robust/Parallel execution path
+#' @noRd
+.motis_one_to_many_calc <- function(
+  one_places, many_places_vec,
+  one, many,
+  one_id_col, many_id_col,
+  mode, arrive_by,
+  max, maxMatchingDistance,
+  withDistance,
+  dots,
+  backend,
+  batch_size,
+  output_path,
+  checkpoint_file,
+  progress,
+  parallel
+) { 
+  # Setup code
+  user_server <- dots[[".server"]]
+  .server <- user_server %||% .get_server_url() %||% "http://localhost:8080"
+  .server <- sub("/$", "", .server)
+  
+  # Remove .server from dots to strictly match API
+  dots[[".server"]] <- NULL
+  
+  if (getOption("rmotis.wait_for_server", TRUE)) .wait_for_server(.server)
+  
+  one_ids <- .get_ids(one, id_col = one_id_col)
+  many_ids <- .get_ids(many, id_col = many_id_col)
+  n_origins <- length(one_places)
+  n_dests <- length(many_places_vec)
+  
+  if (progress) {
+    message(sprintf("Processing %s origins x %s destinations",
+                    format(n_origins, big.mark = ","),
+                    format(n_dests, big.mark = ",")))
+  }
+  
+  # Extract coordinates for spatial sort/filter
+  one_coords <- .extract_coords(one)
+  
+  # Spatial sort origins by latitude checks
+  spatial_sort <- dots[["spatial_sort"]] %||% TRUE
+  dots[["spatial_sort"]] <- NULL # Consume
+  
+  if (spatial_sort) {
+    sort_idx <- order(one_coords[, "lat"])
+    one_places <- one_places[sort_idx]
+    one_ids <- one_ids[sort_idx]
+    one_coords <- one_coords[sort_idx, , drop = FALSE]
+    if (progress) message("v Sorted origins by latitude")
+  }
+  
+  if (!is.null(output_path) && file.exists(output_path) && !dir.exists(output_path)) {
+    # If path exists and is a file (e.g. valid CSV), check if we can resume/append
+    # But checkpoint logic handles resumption via ID skipping.
+    # Here we just verify output consistency.
+  }
+  
+  if (!is.null(checkpoint_file) && file.exists(checkpoint_file)) {
+    completed_ids <- readLines(checkpoint_file, warn = FALSE)
+    pending_mask <- !(one_ids %in% completed_ids)
+    
+    if (all(!pending_mask)) {
+      if (progress) message("v All origins already completed (checkpoint)")
+      if (is.null(output_path)) {
+        return(data.frame(
+          from_id = character(0), to_id = character(0), 
+          duration_s = numeric(0), stringsAsFactors = FALSE
+        ))
+      } else {
+        return(invisible(output_path))
+      }
+    } 
+    
+    # Filter
+    one_places <- one_places[pending_mask]
+    one_ids <- one_ids[pending_mask]
+    one_coords <- one_coords[pending_mask, , drop = FALSE]
+    n_origins <- length(one_places)
+    if (progress) message(sprintf("v Resuming from checkpoint: %s pending", format(n_origins, big.mark = ",")))
+  }
+  
+  # Spatial Filter Logic
+  spatial_filter <- dots[["spatial_filter"]] %||% TRUE
+  dots[["spatial_filter"]] <- NULL
+  
+  many_coords <- NULL
+  max_radius_deg <- NULL
+  
+  if (spatial_filter) {
+    many_coords <- .extract_coords(many)
+    max_speed_kmh <- dots[["max_speed_kmh"]]
+    dots[["max_speed_kmh"]] <- NULL
+    
+    if (is.null(max_speed_kmh)) {
+      max_speed <- switch(mode, WALK = 6, BIKE = 20, CAR = 130)
+    } else {
+      max_speed <- max_speed_kmh
+    }
+    max_radius_km <- (max * max_speed / 3600) * 1.2
+    max_radius_deg <- max_radius_km / 111.0
+    
+    if (progress) message(sprintf("v Spatial filter enabled (radius: %.2f km)", max_radius_km))
+  }
+  
+  dot_params <- .collapse_dots(dots)
+  
+  # Output Setup
+  result_chunks <- list()
+  chunk_idx <- 0L
+  
+  if (!is.null(output_path)) {
+     is_parquet <- grepl("\\.parquet$", output_path, ignore.case = TRUE)
+     is_csv <- grepl("\\.csv$", output_path, ignore.case = TRUE)
+     
+     if (is_parquet) {
+       if (!dir.exists(output_path)) dir.create(output_path, recursive = TRUE)
+       parquet_batch_num <- length(list.files(output_path, pattern = "\\.parquet$"))
+     }
+     csv_written <- file.exists(output_path) && file.size(output_path) > 0 && !dir.exists(output_path)
+  } 
+  
+  # Backend selection
+  use_mirai <- FALSE
+  if (parallel) {
+    if (backend == "mirai") {
+       rlang::check_installed("mirai")
+       use_mirai <- TRUE
+    } else if (backend == "auto") {
+       # Robust detection: check if package is installed and daemons are set
+       if (rlang::is_installed("mirai") && mirai::daemons_set() > 0) {
+         use_mirai <- TRUE
+       }
+    }
+  }
+  
+  if (progress) {
+    if (use_mirai) {
+      n_workers <- mirai::status()$connections
+      message(sprintf("v Using 'mirai' backend for process-based parallelism (%d workers)", n_workers))
+    } else if (parallel) {
+      message("v Using 'httr2' backend for threaded parallelism")
+    } else {
+      # This is the calc path but non-parallel - technically should not be reachable 
+      # if parallel=FALSE dispatched to .calc, but good for diagnostics.
+      message("v Using sequential execution (calculation path)")
+    }
+  }
+  
+  if (use_mirai) rlang::check_installed("mirai")
+  
+  # Processing Loop
+  n_batches <- ceiling(n_origins / batch_size)
+  
+  for (batch_i in seq_len(n_batches)) {
+    start_idx <- (batch_i - 1) * batch_size + 1
+    end_idx <- min(batch_i * batch_size, n_origins)
+    batch_indices <- start_idx:end_idx
+    
+    if (progress) {
+      message(sprintf("Batch %d/%d: origins %d-%d", batch_i, n_batches, start_idx, end_idx))
+    }
+    
+    if (use_mirai) {
+      batch_results <- .process_batch_mirai(
+        origin_indices = batch_indices,
+        one_places = one_places,
+        many_places_vec = many_places_vec,
+        one_ids = one_ids,
+        many_ids = many_ids,
+        one_coords = one_coords,
+        many_coords = many_coords,
+        max_radius_deg = max_radius_deg,
+        mode = mode, arrive_by = arrive_by,
+        max = max, maxMatchingDistance = maxMatchingDistance,
+        withDistance = withDistance, # Promoted withDistance
+        dot_params = dot_params,
+        .server = .server
+      )
+    } else {
+      batch_results <- .process_parallel_batch(
+        origin_indices = batch_indices,
+        one_places = one_places,
+        many_places_vec = many_places_vec,
+        one_ids = one_ids,
+        many_ids = many_ids,
+        one_coords = one_coords,
+        many_coords = many_coords,
+        max_radius_deg = max_radius_deg,
+        mode = mode, arrive_by = arrive_by,
+        max = max, maxMatchingDistance = maxMatchingDistance,
+        withDistance = withDistance,
+        dots = dot_params, 
+        .server = .server,
+        progress = progress
+      )
+    }
+    
+    # Save/Append
+    if (!is.null(output_path)) {
+      .append_results(
+        results = batch_results,
+        output_path = output_path,
+        is_parquet = if (exists("is_parquet")) is_parquet else FALSE,
+        is_csv = if (exists("is_csv")) is_csv else TRUE,
+        csv_written = if (exists("csv_written")) csv_written else FALSE,
+        parquet_batch_num = if (exists("parquet_batch_num")) parquet_batch_num else 0
+      )
+      if (exists("is_parquet") && is_parquet) parquet_batch_num <- parquet_batch_num + 1
+      if (exists("is_csv") && is_csv) csv_written <- TRUE
+    } else {
+      chunk_idx <- chunk_idx + 1L
+      result_chunks[[chunk_idx]] <- batch_results
+    } 
+    
+    if (!is.null(checkpoint_file)) {
+      cat(one_ids[batch_indices], file = checkpoint_file, sep = "\n", append = TRUE)
+    }
+  }
+  
+  if (progress) message("v Processing complete")
+  
+  if (is.null(output_path)) {
+    dplyr::bind_rows(result_chunks)
+  } else {
+    invisible(output_path)
+  }
+} 
+
+#' Internal: Process batch using mirai
+#' @noRd
+.process_batch_mirai <- function(
+  origin_indices, one_places, many_places_vec, one_ids, many_ids,
+  one_coords, many_coords, max_radius_deg,
+  mode, arrive_by, max, maxMatchingDistance, withDistance, dot_params, .server
+) {
+  
+  # Define worker function
+  # Must satisfy self-contained execution
+  # The worker function is defined inside .process_batch_mirai to capture
+  # common arguments via closure, but mirai_map passes them via .args
+  # so we need to extract them from i
+  worker_fun <- function(i, ...) {
+      tryCatch({
+        # Ensure necessary packages are available in the worker environment
+        requireNamespace("httr2", quietly = TRUE)
+        requireNamespace("utils", quietly = TRUE)
+        
+        # Extract arguments passed via .args in mirai_map
+        args <- list(...)
+        
+        # Extract task-specific arguments from i
+        one_place <- i$one_place
+        one_id <- i$one_id
+        
+        many_places_vec <- args$many_places_vec
+        many_ids <- args$many_ids
+        many_coords <- args$many_coords
+        max_radius_deg <- args$max_radius_deg
+        mode <- args$mode
+        arrive_by <- args$arrive_by
+        max <- args$max
+        maxMatchingDistance <- args$maxMatchingDistance
+        withDistance <- args$withDistance
+        dot_params <- args$dot_params
+        .server <- args$.server
+        
+        # --- Worker Logic ---
+        
+        # Spatial Filter Logic (Same as before)
+        keep_idx <- seq_along(many_places_vec) # Default to keeping all
+        filtered_many_places <- many_places_vec
+        filtered_many_ids <- many_ids
+        
+        if (!is.null(many_coords) && !is.null(max_radius_deg)) {
+           # Calculate distance approximation
+           # one_place "lat;lon" -> parse
+           parts <- as.numeric(strsplit(one_place, ";")[[1]])
+           origin_lat <- parts[1]
+           origin_lon <- parts[2]
+           
+           lat_diff <- abs(many_coords[, "lat"] - origin_lat)
+           lon_diff <- abs(many_coords[, "lon"] - origin_lon)
+           keep_idx <- which(lat_diff <= max_radius_deg & lon_diff <= max_radius_deg)
+           
+           if (length(keep_idx) == 0) {
+              # Return empty result
+              return(data.frame(
+                from_id = if (arrive_by) character(0) else one_id,
+                to_id = if (arrive_by) one_id else character(0),
+                duration_s = numeric(0), distance_m = numeric(0),
+                stringsAsFactors = FALSE
+              ))
+           }
+           filtered_many_places <- many_places_vec[keep_idx]
+           filtered_many_ids <- many_ids[keep_idx]
+        }
+        
+        
+        # POST Request - Manual construction due to motis.client capture bug
+        body_params <- list(
+          one = unname(one_place),
+          many = I(unname(filtered_many_places)),
+          mode = unname(mode),
+          arriveBy = unname(arrive_by),
+          max = unname(max),
+          maxMatchingDistance = unname(maxMatchingDistance),
+          elevationCosts = dot_params$elevationCosts %||% "NONE",
+          withDistance = withDistance
+        )
+        # Remove consumed parameters from dot_params for the next call
+        dot_params$elevationCosts <- NULL
+        if (length(dot_params) > 0) body_params <- utils::modifyList(body_params, dot_params)
+        
+        url <- paste0(.server, "/api/v1/one-to-many")
+        
+        req <- httr2::request(url) |>
+          httr2::req_method("POST") |>
+          httr2::req_body_json(body_params) |>
+          httr2::req_retry(max_tries = 3) |>
+          httr2::req_timeout(600)
+          
+        resp <- tryCatch(httr2::req_perform(req), error = function(e) NULL)
+        
+        if (is.null(resp)) {
+           # If request failed, return NA for all destinations
+           return(data.frame(
+              from_id = if(arrive_by) filtered_many_ids else one_id,
+              to_id = if(arrive_by) one_id else filtered_many_ids,
+              duration_s = rep(NA_real_, length(filtered_many_ids)),
+              distance_m = rep(NA_real_, length(filtered_many_ids)),
+              stringsAsFactors = FALSE
+           ))
+        }
+        
+        # Parse Response
+        # Replicate logic from .parse_otm_response to avoid dependency on internal function
+        parsed <- httr2::resp_body_json(resp)
+        
+        n_dests_filtered <- length(filtered_many_ids)
+        durations <- rep(NA_real_, n_dests_filtered)
+        distances <- rep(NA_real_, n_dests_filtered) # Initialize distances
+        
+        if (is.list(parsed) && length(parsed) > 0) {
+          for (k in seq_along(parsed)) {
+            route <- parsed[[k]]
+            if (!is.null(route$duration)) durations[k] <- as.numeric(route$duration)
+            if (!is.null(route$distance)) distances[k] <- as.numeric(route$distance)
+          }
+        }
+        
+        res <- data.frame(
+          from_id = rep(one_id, n_dests_filtered),
+          to_id = filtered_many_ids,
+          duration_s = durations,
+          distance_m = distances,
+          stringsAsFactors = FALSE
+        )
+        
+        if (arrive_by) {
+          names(res)[names(res) == "from_id"] <- ".tmp_from"
+          names(res)[names(res) == "to_id"] <- "from_id"
+          names(res)[names(res) == ".tmp_from"] <- "to_id"
+        }
+        
+        return(res)
+        
+      }, error = function(e) {
+         # If any error occurs within the worker, return NULL
+         # This allows the main process to filter out failed tasks
+         warning(sprintf("Error in mirai worker for origin '%s': %s", args$one_id, e$message), call. = FALSE)
+         return(NULL)
+      })
+    }
+  
+  # Prepare arguments list
+  # We map over indices
+  args_list <- vector("list", length(origin_indices))
+  for (i in seq_along(origin_indices)) {
+     idx <- origin_indices[i]
+     args_list[[i]] <- list(
+        # idx = idx, # Not used in new worker_fun signature
+        one_place = one_places[idx],
+        one_id = one_ids[idx]
+        # one_lat = one_coords[idx, "lat"], # Parsed inside worker
+        # one_lon = one_coords[idx, "lon"]  # Parsed inside worker
+     )
+  }
+  
+  # Execute mirai_map
+  # We pass common args via .args
+  # Note: passing large `many_coords` to every worker might be heavy?
+  # mirai handles it efficiently if passed once?
+  # .args are passed to all.
+  
+  results <- mirai::mirai_map(
+    args_list,
+    worker_fun,
+    .args = list(
+       many_places_vec = many_places_vec,
+       many_ids = many_ids,
+       many_coords = many_coords,
+       max_radius_deg = max_radius_deg,
+       mode = mode, arrive_by = arrive_by,
+       max = max, maxMatchingDistance = maxMatchingDistance,
+       withDistance = withDistance,
+       dot_params = dot_params, .server = .server
+    )
+  )[] # collect
+  
+  # Filter valid results (data frames) and handle errors
+  valid_results <- Filter(is.data.frame, results)
+  
+  if (length(valid_results) < length(results)) {
+     warning("motis_one_to_many: Some mirai batches failed.", call. = FALSE)
+  }
+  
+  if (length(valid_results) == 0) {
+      # Check if any errors occurred and stop if all failed
+      if (length(results) > 0 && inherits(results[[1]], "errorValue")) {
+          stop("motis_one_to_many: All mirai batches failed. First error: ", results[[1]], call. = FALSE)
+      }
+      # Return empty frame if no valid results (e.g., all filtered out or all failed gracefully)
+       return(data.frame(
+          from_id = character(0), to_id = character(0), 
+          duration_s = numeric(0), distance_m = numeric(0),
+          stringsAsFactors = FALSE
+       ))
+  }
+  
+  dplyr::bind_rows(valid_results)
+}
+
+#' Internal: Process batch using httr2
+#' @noRd
+.process_parallel_batch <- function(
+  origin_indices, one_places, many_places_vec, one_ids, many_ids,
+  one_coords, many_coords, max_radius_deg,
+  mode, arrive_by, max, maxMatchingDistance,
+  withDistance, dots, .server, progress
+) {
+  requests <- vector("list", length(origin_indices))
+  origin_metadata <- vector("list", length(origin_indices))
+  
+  for (i in seq_along(origin_indices)) {
+    idx <- origin_indices[i]
+    origin_id <- one_ids[idx]
+    origin_place <- one_places[idx]
+    
+    if (!is.null(many_coords) && !is.null(max_radius_deg)) {
+      origin_lat <- one_coords[idx, "lat"]
+      origin_lon <- one_coords[idx, "lon"]
+      lat_diff <- abs(many_coords[, "lat"] - origin_lat)
+      lon_diff <- abs(many_coords[, "lon"] - origin_lon)
+      keep_idx <- which(lat_diff <= max_radius_deg & lon_diff <= max_radius_deg)
+      
+      if (length(keep_idx) == 0) {
+        origin_metadata[[i]] <- list(origin_id = origin_id, dest_ids = character(0), request_idx = NA_integer_)
+        requests[[i]] <- NULL
+        next
+      }
+      filtered_many_places <- many_places_vec[keep_idx]
+      filtered_many_ids <- many_ids[keep_idx]
+    } else {
+      filtered_many_places <- many_places_vec
+      filtered_many_ids <- many_ids
+    }
+    
+    origin_metadata[[i]] <- list(origin_id = origin_id, dest_ids = filtered_many_ids, request_idx = i)
+    
+    # Manual request construction due to motis.client capture bug
+    body_params <- list(
+      one = origin_place, many = I(filtered_many_places),
+      mode = mode, arriveBy = arrive_by, max = max,
+      maxMatchingDistance = maxMatchingDistance,
+      elevationCosts = dots$elevationCosts %||% "NONE",
+      withDistance = withDistance
+    )
+    dots$elevationCosts <- NULL
+    if (length(dots) > 0) body_params <- utils::modifyList(body_params, dots)
+    
+    req <- httr2::request(.server) |>
+      httr2::req_url_path_append("api/v1/one-to-many") |>
+      httr2::req_method("POST") |>
+      httr2::req_body_json(body_params) |>
+      httr2::req_retry(max_tries = getOption("rmotis.retry_max_tries", 3), backoff = getOption("rmotis.retry_backoff", ~ 2)) |>
+      httr2::req_timeout(600)
+    requests[[i]] <- req
+  }
+  
+  valid_requests <- Filter(Negate(is.null), requests)
+  valid_metadata <- Filter(function(m) !is.na(m$request_idx), origin_metadata)
+  
+  if (length(valid_requests) == 0) {
+    return(data.frame(from_id = character(0), to_id = character(0), duration_s = numeric(0), stringsAsFactors = FALSE))
+  }
+  
+  if (progress) message(sprintf("  -> Sending %d parallel HTTP requests...", length(valid_requests)))
+  
+  responses <- httr2::req_perform_parallel(valid_requests, on_error = "continue")
+  results_list <- vector("list", length(responses))
+  
+  for (i in seq_along(responses)) {
+    resp <- responses[[i]]
+    meta <- valid_metadata[[i]]
+    
+    if (inherits(resp, "httr2_error") || httr2::resp_is_error(resp)) {
+      results_list[[i]] <- data.frame(
+        from_id = if (arrive_by) meta$dest_ids else meta$origin_id,
+        to_id = if (arrive_by) meta$origin_id else meta$dest_ids,
+        duration_s = NA_real_, distance_m = NA_real_, stringsAsFactors = FALSE
+      )
+      next
+    }
+    
+    parsed <- tryCatch(httr2::resp_body_json(resp), error = function(e) list())
+    results_list[[i]] <- .parse_otm_response(parsed, meta$origin_id, meta$dest_ids, arrive_by)
+  }
+  dplyr::bind_rows(results_list)
+}
+
+#' Parse one-to-many response JSON
+#' @noRd
+.parse_otm_response <- function(response_body, origin_id, dest_ids, arrive_by) {
+  n_dests <- length(dest_ids)
+  durations <- rep(NA_real_, n_dests)
+  distances <- NULL
+  has_distance <- FALSE
+  
+  if (is.list(response_body) && length(response_body) > 0) {
+    for (i in seq_along(response_body)) {
+      route <- response_body[[i]]
+      if (!is.null(route$duration)) durations[i] <- as.numeric(route$duration)
+      if (!is.null(route$distance)) {
+        if (!has_distance) {
+          distances <- rep(NA_real_, n_dests)
+          has_distance <- TRUE
+        }
+        distances[i] <- as.numeric(route$distance)
+      }
+    }
+  }
+  
+  df <- data.frame(from_id = rep(origin_id, n_dests), to_id = dest_ids, duration_s = durations, stringsAsFactors = FALSE)
+  if (has_distance) df$distance_m <- distances
+  
+  if (arrive_by) {
+    names(df)[names(df) == "from_id"] <- ".tmp_from"
+    names(df)[names(df) == "to_id"] <- "from_id"
+    names(df)[names(df) == ".tmp_from"] <- "to_id"
+  }
+  df
+}
+
+#' Append results helper
+#' @noRd
+.append_results <- function(results, output_path, is_parquet, is_csv, csv_written, parquet_batch_num) {
+  if (is_parquet) {
+    batch_file <- file.path(output_path, sprintf("batch_%04d.parquet", parquet_batch_num + 1))
+    if (rlang::is_installed("arrow")) arrow::write_parquet(results, batch_file) else stop("'arrow' required")
+  } else {
+    if (rlang::is_installed("data.table") && requireNamespace("data.table", quietly = TRUE)) {
+      data.table::fwrite(results, file = output_path, append = csv_written, col.names = !csv_written)
+    } else {
+      utils::write.table(results, file = output_path, append = csv_written, col.names = !csv_written,
+                         row.names = FALSE, sep = ",", quote = TRUE)
+    }
+  }
+} 
+
+#' Wait for server helper
+#' @noRd
+.wait_for_server <- function(server_url, timeout = 120, poll_interval = 2) {
+  deadline <- Sys.time() + timeout
+  while (Sys.time() < deadline) {
+    tryCatch({
+      resp <- httr2::request(paste0(server_url, "/")) |> httr2::req_timeout(5) |> httr2::req_perform()
+      if (httr2::resp_status(resp) < 500) return(invisible(TRUE))
+    }, error = function(e) NULL)
+    Sys.sleep(poll_interval)
+  }
+  warning(sprintf("MOTIS server at %s did not respond.", server_url), call. = FALSE)
 }

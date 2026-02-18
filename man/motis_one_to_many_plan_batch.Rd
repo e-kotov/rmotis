@@ -14,6 +14,7 @@ motis_one_to_many_plan_batch(
   maxMatchingDistance = 1000,
   one_id_col = "id",
   many_id_col = "id",
+  withDistance = FALSE,
   ...,
   spatial_filter = TRUE,
   spatial_sort = TRUE,
@@ -41,6 +42,9 @@ Defaults to \code{1000}.}
 \item{one_id_col}{Column name for origin IDs. Defaults to \code{"id"}.}
 
 \item{many_id_col}{Column name for destination IDs. Defaults to \code{"id"}.}
+
+\item{withDistance}{Logical. Include distance in the output?
+Defaults to \code{FALSE}.}
 
 \item{...}{Additional API parameters passed to the MOTIS one-to-many endpoint.}
 
