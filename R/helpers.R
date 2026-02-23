@@ -655,3 +655,146 @@ debug_msg <- function(...) {
   
   stop("Unsupported input type for coordinate extraction.", call. = FALSE)
 }
+
+#' Internal helper to sort points spatially
+#' @param pts A coordinate matrix (lat, lon)
+#' @param method Sort method: "z-order" or "lat"
+#' @return Integer vector of indices
+#' @noRd
+.spatial_sort_points <- function(pts, method = c("z-order", "lat")) {
+  method <- match.arg(method)
+  if (nrow(pts) <= 1) return(seq_len(nrow(pts)))
+  
+  if (method == "lat") {
+    return(order(pts[, "lat"]))
+  }
+  
+  # Z-order (Morton curve) using bit-interleaving
+  # Quantize to 1024x1024 grid (10 bits each)
+  lat_range <- range(pts[, "lat"], na.rm = TRUE)
+  lon_range <- range(pts[, "lon"], na.rm = TRUE)
+  
+  lat_q <- as.integer((pts[, "lat"] - lat_range[1]) / (max(diff(lat_range), 1e-7)) * 1023)
+  lon_q <- as.integer((pts[, "lon"] - lon_range[1]) / (max(diff(lon_range), 1e-7)) * 1023)
+  
+  # Interleave bits (simplified version: (lat_q << 10) | lon_q)
+  # This provides good spatial locality for MOTIS graph cache
+  z_order <- bitwOr(bitwShiftL(lat_q, 10), lon_q)
+  order(z_order)
+}
+
+#' Smart chunking dispatcher for one-to-many routing
+#' @param n_origins Total number of origins
+#' @param n_dests Total number of destinations
+#' @param engine Engine type ("api" or "batch")
+#' @param batch_size User-requested batch size (origins per request)
+#' @param max_destinations_per_batch User-requested max destinations per batch
+#' @return A list with calculated `batch_size` and `dest_chunks` (list of indices)
+#' @noRd
+.smart_chunk_dispatch <- function(n_origins, n_dests, engine = c("api", "batch"), 
+                                  batch_size = NULL, max_destinations_per_batch = NULL) {
+  engine <- match.arg(engine)
+  
+  # 1. Origins per request (batch_size)
+  if (is.null(batch_size)) {
+    # API defaults to 16 for parallel robustness
+    # Batch defaults to 1000 to keep query file size reasonable
+    batch_size <- if (engine == "api") 16L else 1000L 
+  }
+  
+  # 2. Destinations per request (splitting)
+  # Heuristic: Priority is origin-first. Only split destinations if count is very high.
+  if (is.null(max_destinations_per_batch)) {
+    # 50k dests is a safe default for memory/JSON limits
+    max_destinations_per_batch <- if (engine == "api") 10000L else 50000L
+  }
+  
+  # Ensure max_destinations_per_batch is at least 1
+  max_destinations_per_batch <- max(1L, as.integer(max_destinations_per_batch))
+  
+  # Create destination chunks
+  n_chunks <- ceiling(n_dests / max_destinations_per_batch)
+  if (n_chunks <= 1) {
+    dest_chunks <- list(seq_len(n_dests))
+  } else {
+    # Split indices as evenly as possible
+    dest_chunks <- base::split(seq_len(n_dests), cut(seq_len(n_dests), n_chunks, labels = FALSE))
+  }
+  
+  list(
+    batch_size = as.integer(batch_size),
+    dest_chunks = dest_chunks
+  )
+}
+
+#' Unified output handler for routing results
+#' @param results A data.frame of results
+#' @param output_path Path to write to
+#' @param format Output format: "data.frame", "parquet", "csv", "duckdb"
+#' @param append Logical, whether to append
+#' @param ... Additional args (e.g., table name for duckdb)
+#' @return The output_path invisibly, or the results if format is "data.frame"
+#' @noRd
+.unified_output_handler <- function(results, output_path, format = c("data.frame", "parquet", "csv", "duckdb"), append = TRUE, ...) {
+  format <- match.arg(format)
+  if (is.null(output_path) || format == "data.frame") return(results)
+  if (nrow(results) == 0) return(invisible(output_path))
+  
+  dots <- list(...)
+  
+  if (format == "parquet") {
+    rlang::check_installed("arrow")
+    # If output_path ends in .parquet and is NOT a directory, treat as single file
+    is_single_file <- grepl("\\.parquet$", output_path, ignore.case = TRUE) && !dir.exists(output_path)
+    
+    if (is_single_file) {
+       # Note: arrow::write_parquet doesn't support append. 
+       # For large scale, partitioned directory is recommended.
+       arrow::write_parquet(results, output_path)
+    } else {
+       if (!dir.exists(output_path)) dir.create(output_path, recursive = TRUE)
+       # Count existing parts to avoid collision
+       batch_num <- length(list.files(output_path, pattern = "\\.parquet$")) + 1
+       file_path <- file.path(output_path, sprintf("part_%04d.parquet", batch_num))
+       arrow::write_parquet(results, file_path)
+    }
+  } else if (format == "csv") {
+    if (rlang::is_installed("data.table") && requireNamespace("data.table", quietly = TRUE)) {
+      data.table::fwrite(results, file = output_path, append = append, col.names = !append || !file.exists(output_path))
+    } else {
+      utils::write.table(results, file = output_path, append = append, col.names = !append || !file.exists(output_path),
+                         row.names = FALSE, sep = ",", quote = TRUE)
+    }
+  } else if (format == "duckdb") {
+    rlang::check_installed(c("duckdb", "DBI"))
+    table_name <- dots$table_name %||% "routing_results"
+    
+    con <- DBI::dbConnect(duckdb::duckdb(), output_path)
+    on.exit(DBI::dbDisconnect(con, shutdown = TRUE))
+    
+    DBI::dbWriteTable(con, table_name, results, append = append)
+  }
+  
+  invisible(output_path)
+}
+
+#' Temporary file manager for routing engines
+#' @param temp_dir Path to temp directory
+#' @param prefix Prefix for file names
+#' @return A list of file paths (query, meta, response, checkpoint)
+#' @noRd
+.temp_file_manager <- function(temp_dir = tempdir(), prefix = "motis_") {
+  if (!dir.exists(temp_dir)) dir.create(temp_dir, recursive = TRUE)
+  
+  # Generate a reasonably unique ID for this session/run
+  unique_id <- paste0(prefix, format(Sys.time(), "%Y%m%d_%H%M%S"), "_", 
+                      sprintf("%06d", floor(stats::runif(1, 0, 1e6))))
+  
+  list(
+    query = file.path(temp_dir, paste0(unique_id, "_query.txt")),
+    meta = file.path(temp_dir, paste0(unique_id, "_query.txt.meta")),
+    response = file.path(temp_dir, paste0(unique_id, "_response.txt")),
+    checkpoint = file.path(temp_dir, paste0(unique_id, "_checkpoint.txt")),
+    dir = temp_dir
+  )
+}
