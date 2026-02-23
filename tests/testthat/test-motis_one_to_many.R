@@ -1,4 +1,6 @@
 
+options(rmotis.wait_for_server = FALSE)
+
 test_that("motis_one_to_many works with mocked POST request", {
   # Define the mock response data
   mock_response_json <- '[
@@ -33,7 +35,7 @@ test_that("motis_one_to_many works with mocked POST request", {
       # Test arrive_by = FALSE (One to Many)
       x_out <- motis_one_to_many(
         one = dest, many = origins, mode = "CAR", distance = TRUE,
-        .server = "http://localhost:8080", max = 3600
+        .server = "http://localhost:8080", max = 3600, parallel = FALSE
       )
       expect_s3_class(x_out, "data.frame")
       expect_equal(names(x_out), c("from_id", "to_id", "duration_s", "distance_m"))
@@ -45,7 +47,7 @@ test_that("motis_one_to_many works with mocked POST request", {
       # Test arrive_by = TRUE (Many to One)
       x_in <- motis_one_to_many(
         one = dest, many = origins, mode = "CAR", arrive_by = TRUE, distance = TRUE,
-        .server = "http://localhost:8080"
+        .server = "http://localhost:8080", parallel = FALSE
       )
       expect_equal(x_in$to_id, c("1", "1"))
       expect_equal(x_in$from_id, c("1", "2"))
@@ -84,7 +86,7 @@ test_that("motis_one_to_many handles sf objects correctly (mocked)", {
       
       res <- motis_one_to_many(
         one = dest_sf, many = origins_sf, mode = "CAR",
-        .server = "http://localhost:8080"
+        .server = "http://localhost:8080", parallel = FALSE
       )
       
       expect_s3_class(res, "data.frame")
