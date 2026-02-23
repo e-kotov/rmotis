@@ -26,7 +26,8 @@ motis_one_to_many(
   progress = TRUE,
   data_dir = NULL,
   temp_dir = tempdir(),
-  keep_files = FALSE
+  keep_files = FALSE,
+  eol = NULL
 )
 }
 \arguments{
@@ -125,6 +126,9 @@ multiple requests to avoid memory or timeout issues.}
 \item{temp_dir}{Directory for temporary batch files. Defaults to \code{tempdir()}.}
 
 \item{keep_files}{Logical. Keep temporary files? Defaults to \code{FALSE}.}
+
+\item{eol}{Optional line ending for batch query files (e.g., \code{"\\n"}).
+If provided, forces this line ending even on Windows.}
 }
 \value{
 Depending on the \code{output} parameter and \code{output_path}, a \code{data.frame},

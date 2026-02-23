@@ -24,7 +24,8 @@ motis_one_to_many_batch(
   keep_files = FALSE,
   spatial_filter = TRUE,
   spatial_sort = TRUE,
-  split = 1L
+  split = 1L,
+  eol = NULL
 )
 }
 \arguments{
@@ -71,6 +72,9 @@ Mapped to \code{temp_dir} in the new interface.}
 \item{spatial_sort}{Logical. Sort origins spatially.}
 
 \item{split}{Integer. Mapped to \code{max_destinations_per_batch} if > 1.}
+
+\item{eol}{Optional line ending for batch query files (e.g., \code{"\\n"}).
+If provided, forces this line ending even on Windows.}
 }
 \value{
 A data.frame or \code{output_path} invisibly.
