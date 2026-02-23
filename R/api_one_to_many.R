@@ -41,6 +41,8 @@
 #' @param data_dir Path to MOTIS data directory. Required if `engine='batch'`.
 #' @param temp_dir Directory for temporary batch files. Defaults to `tempdir()`.
 #' @param keep_files Logical. Keep temporary files? Defaults to `FALSE`.
+#' @param eol Optional line ending for batch query files (e.g., `"\n"`). 
+#'   If provided, forces this line ending even on Windows.
 #' @inheritDotParams motis.client::mc_oneToMany -one -many -mode -arriveBy -max -maxMatchingDistance -withDistance -.endpoint
 #'
 #' @return Depending on the `output` parameter and `output_path`, a `data.frame`, 
@@ -71,7 +73,8 @@ motis_one_to_many <- function(
   progress = TRUE,
   data_dir = NULL,
   temp_dir = tempdir(),
-  keep_files = FALSE
+  keep_files = FALSE,
+  eol = NULL
 )  {
   # --- 1. Argument and Input Validation ---
   engine <- match.arg(engine)
@@ -94,7 +97,7 @@ motis_one_to_many <- function(
       withDistance = withDistance, ..., 
       temp_dir = temp_dir, keep_files = keep_files, progress = progress,
       batch_size = batch_size, max_destinations_per_batch = max_destinations_per_batch,
-      output_path = output_path
+      output_path = output_path, eol = eol
     ))
   }
 
@@ -185,7 +188,8 @@ motis_one_to_many_batch <- function(
   keep_files = FALSE,
   spatial_filter = TRUE,
   spatial_sort = TRUE,
-  split = 1L
+  split = 1L,
+  eol = NULL
 ) {
   lifecycle::deprecate_warn("0.2.0", "motis_one_to_many_batch()", "motis_one_to_many(engine = 'batch')")
   
@@ -199,7 +203,8 @@ motis_one_to_many_batch <- function(
     engine = "batch", motis_path = motis_path, chunk_size = chunk_size,
     output_callback = output_callback, echo = echo, temp_dir = output_dir,
     keep_files = keep_files, spatial_filter = spatial_filter,
-    spatial_sort = spatial_sort, max_destinations_per_batch = max_dest
+    spatial_sort = spatial_sort, max_destinations_per_batch = max_dest,
+    eol = eol
   )
 }
 
@@ -486,7 +491,8 @@ motis_one_to_many_read_batch <- function(
   spatial_sort = TRUE,
   batch_size = NULL,
   max_destinations_per_batch = NULL,
-  output_path = NULL
+  output_path = NULL,
+  eol = NULL
 ) {
   mode <- match.arg(mode)
   data_dir <- normalizePath(data_dir, mustWork = TRUE)
@@ -636,8 +642,19 @@ motis_one_to_many_read_batch <- function(
   meta_lines <- meta_lines[non_empty]
   actual_lines <- length(query_lines)
 
-  writeLines(query_lines, query_file)
-  writeLines(meta_lines, meta_file)
+  # Write with custom EOL if requested
+  if (!is.null(eol)) {
+    q_con <- file(query_file, open = "wb")
+    writeLines(query_lines, con = q_con, sep = eol)
+    close(q_con)
+    
+    m_con <- file(meta_file, open = "wb")
+    writeLines(meta_lines, con = m_con, sep = eol)
+    close(m_con)
+  } else {
+    writeLines(query_lines, query_file)
+    writeLines(meta_lines, meta_file)
+  }
 
   if (echo) {
     .print_file_info("Query file", query_file, n_lines = actual_lines)
