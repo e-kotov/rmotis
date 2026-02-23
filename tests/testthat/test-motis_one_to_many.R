@@ -138,7 +138,8 @@ test_that("parquet output directory works", {
   one <- data.frame(lat = c(59.3, 59.4), lon = c(18.0, 18.1), id = c("O1", "O2"))
   many <- data.frame(lat = 60.0, lon = 18.5, id = "D1")
   
-  parquet_dir <- tempfile("output_", fileext = ".parquet")
+  # Use a path WITHOUT .parquet extension to ensure it is treated as a directory
+  parquet_dir <- tempfile("output_parquet_dir_")
   on.exit(unlink(parquet_dir, recursive = TRUE), add = TRUE)
   
   mock_fn <- function(req) {

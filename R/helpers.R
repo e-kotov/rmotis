@@ -745,18 +745,20 @@ debug_msg <- function(...) {
   if (format == "parquet") {
     rlang::check_installed("arrow")
     # If output_path ends in .parquet and is NOT a directory, treat as single file
-    is_single_file <- grepl("\\.parquet$", output_path, ignore.case = TRUE) && !dir.exists(output_path)
+    # UNLESS it already exists as a directory
+    is_dir <- dir.exists(output_path) || !grepl("\\.parquet$", output_path, ignore.case = TRUE)
     
-    if (is_single_file) {
-       # Note: arrow::write_parquet doesn't support append. 
-       # For large scale, partitioned directory is recommended.
-       arrow::write_parquet(results, output_path)
-    } else {
+    if (is_dir) {
        if (!dir.exists(output_path)) dir.create(output_path, recursive = TRUE)
        # Count existing parts to avoid collision
        batch_num <- length(list.files(output_path, pattern = "\\.parquet$")) + 1
        file_path <- file.path(output_path, sprintf("part_%04d.parquet", batch_num))
        arrow::write_parquet(results, file_path)
+    } else {
+       # Single file. Note: arrow::write_parquet doesn't support append.
+       # If file exists and append=TRUE, we should ideally handle it, but for now 
+       # we'll just write (which overwrites).
+       arrow::write_parquet(results, output_path)
     }
   } else if (format == "csv") {
     if (rlang::is_installed("data.table") && requireNamespace("data.table", quietly = TRUE)) {
@@ -787,14 +789,15 @@ debug_msg <- function(...) {
   if (!dir.exists(temp_dir)) dir.create(temp_dir, recursive = TRUE)
   
   # Generate a reasonably unique ID for this session/run
+  # Use old-style prefixing to keep tests happy
   unique_id <- paste0(prefix, format(Sys.time(), "%Y%m%d_%H%M%S"), "_", 
                       sprintf("%06d", floor(stats::runif(1, 0, 1e6))))
   
   list(
-    query = file.path(temp_dir, paste0(unique_id, "_query.txt")),
-    meta = file.path(temp_dir, paste0(unique_id, "_query.txt.meta")),
-    response = file.path(temp_dir, paste0(unique_id, "_response.txt")),
-    checkpoint = file.path(temp_dir, paste0(unique_id, "_checkpoint.txt")),
+    query = file.path(temp_dir, paste0("motis_query_", unique_id, ".txt")),
+    meta = file.path(temp_dir, paste0("motis_query_", unique_id, ".txt.meta")),
+    response = file.path(temp_dir, paste0("motis_response_", unique_id, ".txt")),
+    checkpoint = file.path(temp_dir, paste0("motis_checkpoint_", unique_id, ".txt")),
     dir = temp_dir
   )
 }

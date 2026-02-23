@@ -1097,10 +1097,20 @@ motis_one_to_many_read_batch <- function(
         chunk_idx <- chunk_idx + 1L
         result_chunks[[chunk_idx]] <- batch_results
       } else {
-        # Determine format from extension
+        # Determine format from extension or directory existence
         out_fmt <- "csv"
-        if (grepl("\\.parquet$", output_path, ignore.case = TRUE) || dir.exists(output_path)) out_fmt <- "parquet"
-        if (grepl("\\.duckdb$", output_path, ignore.case = TRUE)) out_fmt <- "duckdb"
+        # If it ends in .parquet OR it's a directory (intended for partitions)
+        # OR it doesn't have an extension and we want partitioned parquet by default for directories
+        if (grepl("\\.parquet$", output_path, ignore.case = TRUE)) {
+          out_fmt <- "parquet"
+        } else if (grepl("\\.duckdb$", output_path, ignore.case = TRUE)) {
+          out_fmt <- "duckdb"
+        } else if (grepl("\\.csv$", output_path, ignore.case = TRUE)) {
+          out_fmt <- "csv"
+        } else if (!grepl("\\\\.[a-zA-Z0-9]+$", output_path)) {
+          # No extension -> assume partitioned parquet directory
+          out_fmt <- "parquet"
+        }
         
         .unified_output_handler(
           results = batch_results,
