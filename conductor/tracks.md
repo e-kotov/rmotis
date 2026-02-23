@@ -9,5 +9,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: Unify motis_one_to_many and motis_one_to_many_batch into a single interface with smart chunking and flexible output.**
+- [x] **Track: Unify motis_one_to_many and motis_one_to_many_batch into a single interface with smart chunking and flexible output.**
 *Link: [./tracks/unified_one_to_many_20260223/](./tracks/unified_one_to_many_20260223/)*
