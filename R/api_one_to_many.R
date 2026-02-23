@@ -1,9 +1,10 @@
 
 #' Calculate one-to-many or many-to-one street-level routes
 #'
-#' This function computes travel time and distance from a single origin to
+#' This function computes travel time and distance from origin(s) to
 #' multiple destinations (or vice versa). It supports both simple single-request
-#' execution and robust parallel execution for large datasets.
+#' execution and robust parallel/batch execution for large datasets using either
+#' the MOTIS API or the MOTIS CLI batch engine.
 #'
 #' @param one Origin(s). Can be a data frame/tibble with coordinate columns,
 #'   an `sf` object, or a vector/matrix of coordinates.
@@ -19,25 +20,31 @@
 #' @param maxMatchingDistance maximum matching distance in meters
 #' @param withDistance Logical. Include distance in the output? 
 #'   Defaults to `FALSE`.
+#' @param ... Additional MOTIS API parameters.
+#' @param engine Execution engine:
+#'   - `"api"` (default): Uses the MOTIS POST API. Supports parallel backends.
+#'   - `"batch"`: Uses the MOTIS CLI batch command. **Recommended for very large
+#'     datasets** (millions of routes). Requires `data_dir`.
 #' @param output The desired output format. One of:
 #'   - `"data.frame"` (default): A tidy data frame.
-#'   - `"raw_list"`: The raw parsed JSON response (only for non-parallel execution).
-#' @param parallel Logical. Enable parallel processing? Defaults to `FALSE`.
-#'   If `TRUE`, `output_file`, `batch_size`, and `backend` are used.
-#' @param backend Parallel backend:
-#'   - `"auto"` (default): Uses `"mirai"` if available and daemons are set up, otherwise `"httr2"`.
-#'   - `"httr2"`: Low-overhead threaded parallelism. Best for small-latency, small-payload requests.
-#'   - `"mirai"`: **Recommended for large workloads**. Uses separate R processes.
-#'     Slightly higher overhead, but parses large JSON responses in parallel, avoiding the
-#'     main R thread bottleneck. Requires `mirai::daemons()`.
-#' @param batch_size Number of origins to process in parallel per batch.
-#' @param output_path Optional path to write results incrementally (`.csv` or **Directory** of `.parquet` files).
-#' @param checkpoint_file Optional path for checkpointing progress.
+#'   - `"raw_list"`: The raw parsed JSON response (only for `engine='api'` and non-parallel execution).
+#' @param parallel Logical. Enable parallel processing for the API engine? 
+#'   Defaults to `TRUE`.
+#' @param backend Parallel backend for API engine: `"auto"`, `"httr2"`, or `"mirai"`.
+#' @param batch_size Number of origins to process per batch/request.
+#' @param max_destinations_per_batch Optional limit to split destinations into 
+#'   multiple requests to avoid memory or timeout issues.
+#' @param output_path Optional path to write results incrementally (`.csv`, 
+#'   `.duckdb`, or **Directory** of `.parquet` files).
+#' @param checkpoint_file Optional path for checkpointing progress (API engine only).
 #' @param progress Logical. Display progress bar/messages?
+#' @param data_dir Path to MOTIS data directory. Required if `engine='batch'`.
+#' @param temp_dir Directory for temporary batch files. Defaults to `tempdir()`.
+#' @param keep_files Logical. Keep temporary files? Defaults to `FALSE`.
 #' @inheritDotParams motis.client::mc_oneToMany -one -many -mode -arriveBy -max -maxMatchingDistance -withDistance -.endpoint
 #'
-#' @return Depending on the `output` parameter, a `data.frame` or a list.
-#'   If `output_path` is specified, returns the path invisibly.
+#' @return Depending on the `output` parameter and `output_path`, a `data.frame`, 
+#'   a list, or the `output_path` invisibly.
 #' @export
 #' @importFrom httr2 req_perform resp_body_json
 #' @importFrom dplyr bind_rows
@@ -53,15 +60,21 @@ motis_one_to_many <- function(
   maxMatchingDistance = 1000, # 1 km
   withDistance = FALSE,
   ...,
+  engine = c("api", "batch"),
   output = c("data.frame", "raw_list"),
   parallel = TRUE,
   backend = c("auto", "httr2", "mirai"),
-  batch_size = 16L,
+  batch_size = NULL,
+  max_destinations_per_batch = NULL,
   output_path = NULL,
   checkpoint_file = NULL,
-  progress = TRUE
+  progress = TRUE,
+  data_dir = NULL,
+  temp_dir = tempdir(),
+  keep_files = FALSE
 )  {
   # --- 1. Argument and Input Validation ---
+  engine <- match.arg(engine)
   output <- match.arg(output)
   mode <- match.arg(mode)
   backend <- match.arg(backend)
@@ -72,10 +85,25 @@ motis_one_to_many <- function(
   
   # --- 2. Dispatch Logic ---
   
-  # Determine if we can use the simple path (single origin, no fancy features)
-  # Determine if we can use the simple path (single origin, no fancy features)
+  if (engine == "batch") {
+    if (is.null(data_dir)) stop("'data_dir' is required for engine='batch'", call. = FALSE)
+    return(.motis_one_to_many_batch_cli(
+      one = one, many = many, data_dir = data_dir, mode = mode,
+      arrive_by = arrive_by, max = max, maxMatchingDistance = maxMatchingDistance,
+      one_id_col = one_id_col, many_id_col = many_id_col,
+      withDistance = withDistance, ..., 
+      temp_dir = temp_dir, keep_files = keep_files, progress = progress,
+      batch_size = batch_size, max_destinations_per_batch = max_destinations_per_batch,
+      output_path = output_path
+    ))
+  }
+
+  # API Engine logic
+  
   # Simple path = 1 origin AND no parallel requested AND no file streaming AND no checkpointing
-  is_simple <- !parallel && length(one_places) == 1 && is.null(output_path) && is.null(checkpoint_file)
+  # AND no destination splitting requested
+  is_simple <- !parallel && length(one_places) == 1 && is.null(output_path) && 
+               is.null(checkpoint_file) && is.null(max_destinations_per_batch)
   
   if (is_simple) {
     return(.motis_one_to_many_simple(
@@ -91,7 +119,7 @@ motis_one_to_many <- function(
     ))
   } else {
     if (output == "raw_list") {
-      warning("output='raw_list' is not supported in parallel/robust mode. returning data.frame.", call. = FALSE)
+      warning("output='raw_list' is not supported in robust mode. returning data.frame.", call. = FALSE)
     }
     
     return(.motis_one_to_many_calc(
@@ -108,13 +136,71 @@ motis_one_to_many <- function(
       withDistance = withDistance,
       dots = list(...), # Capture dots
       backend = backend,
-      batch_size = batch_size,
+      batch_size = batch_size %||% 16L,
       output_path = output_path,
       checkpoint_file = checkpoint_file,
       progress = progress,
       parallel = parallel
     ))
   }
+}
+
+#' Run Full One-to-Many Batch Routing Cycle via CLI
+#'
+#' @description
+#' `r lifecycle::badge("deprecated")`
+#' 
+#' This function is now a wrapper around [motis_one_to_many()] with `engine = "batch"`.
+#' 
+#' @inheritParams motis_one_to_many
+#' @param motis_path Path to the directory containing the MOTIS binary, or
+#'   `NULL` to use the system PATH.
+#' @param echo Logical. If `TRUE` (default), echo MOTIS batch output
+#'   (timing statistics) to the console.
+#' @param output_dir Directory where to save the temporary batch files. 
+#'   Mapped to `temp_dir` in the new interface.
+#' @param spatial_filter Logical. Pre-filter destinations per origin.
+#' @param spatial_sort Logical. Sort origins spatially.
+#' @param split Integer. Mapped to `max_destinations_per_batch` if > 1.
+#'
+#' @return A data.frame or `output_path` invisibly.
+#' @export
+motis_one_to_many_batch <- function(
+  one,
+  many,
+  data_dir,
+  mode = c("WALK", "BIKE", "CAR"),
+  arrive_by = FALSE,
+  max = 7200,
+  maxMatchingDistance = 1000,
+  one_id_col = "id",
+  many_id_col = "id",
+  withDistance = FALSE,
+  ...,
+  motis_path = NULL,
+  chunk_size = 10000L,
+  output_callback = NULL,
+  echo = TRUE,
+  output_dir = tempdir(),
+  keep_files = FALSE,
+  spatial_filter = TRUE,
+  spatial_sort = TRUE,
+  split = 1L
+) {
+  lifecycle::deprecate_warn("0.2.0", "motis_one_to_many_batch()", "motis_one_to_many(engine = 'batch')")
+  
+  max_dest <- if (split > 1) ceiling(nrow(as.data.frame(many)) / split) else NULL
+  
+  motis_one_to_many(
+    one = one, many = many, data_dir = data_dir, mode = mode,
+    arrive_by = arrive_by, max = max, maxMatchingDistance = maxMatchingDistance,
+    one_id_col = one_id_col, many_id_col = many_id_col,
+    withDistance = withDistance, ...,
+    engine = "batch", motis_path = motis_path, chunk_size = chunk_size,
+    output_callback = output_callback, echo = echo, temp_dir = output_dir,
+    keep_files = keep_files, spatial_filter = spatial_filter,
+    spatial_sort = spatial_sort, max_destinations_per_batch = max_dest
+  )
 }
 
 #' Generate MOTIS Batch Query File for One-to-Many
@@ -393,6 +479,7 @@ motis_one_to_many_read_batch <- function(
   chunk_size = 10000L,
   output_callback = NULL,
   echo = TRUE,
+  progress = TRUE,
   temp_dir = tempdir(),
   keep_files = FALSE,
   spatial_filter = TRUE,
