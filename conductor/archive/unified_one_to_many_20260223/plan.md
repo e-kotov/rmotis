@@ -40,3 +40,4 @@
 
 ## Phase: Review Fixes
 - [x] Task: Apply review suggestions e8c6d77
+- [x] Task: Implement `eol` argument to force LF on Windows 5148d60
