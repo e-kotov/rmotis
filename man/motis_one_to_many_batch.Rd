@@ -73,8 +73,9 @@ Mapped to \code{temp_dir} in the new interface.}
 
 \item{split}{Integer. Mapped to \code{max_destinations_per_batch} if > 1.}
 
-\item{eol}{Optional line ending for batch query files (e.g., \code{"\\n"}).
-If provided, forces this line ending even on Windows.}
+\item{eol}{Optional line ending for batch query files (e.g., \code{"\\n"} for LF or
+\code{"\\r\\n"} for CRLF). If provided, forces this line ending even on Windows.
+Typically, \code{"\\n"} is required for MOTIS batch processing.}
 }
 \value{
 A data.frame or \code{output_path} invisibly.

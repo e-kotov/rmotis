@@ -128,8 +128,9 @@ multiple requests to avoid memory or timeout issues.}
 
 \item{keep_files}{Logical. Keep temporary files? Defaults to \code{FALSE}.}
 
-\item{eol}{Optional line ending for batch query files (e.g., \code{"\\n"}).
-If provided, forces this line ending even on Windows.}
+\item{eol}{Optional line ending for batch query files (e.g., \code{"\\n"} for LF or
+\code{"\\r\\n"} for CRLF). If provided, forces this line ending even on Windows.
+Typically, \code{"\\n"} is required for MOTIS batch processing.}
 
 \item{motis_path}{Path to the directory containing the MOTIS binary, or
 \code{NULL} to use the system PATH.}

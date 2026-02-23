@@ -41,8 +41,9 @@
 #' @param data_dir Path to MOTIS data directory. Required if `engine='batch'`.
 #' @param temp_dir Directory for temporary batch files. Defaults to `tempdir()`.
 #' @param keep_files Logical. Keep temporary files? Defaults to `FALSE`.
-#' @param eol Optional line ending for batch query files (e.g., `"\n"`). 
-#'   If provided, forces this line ending even on Windows.
+#' @param eol Optional line ending for batch query files (e.g., `"\n"` for LF or
+#'   `"\r\n"` for CRLF). If provided, forces this line ending even on Windows.
+#'   Typically, `"\n"` is required for MOTIS batch processing.
 #' @param motis_path Path to the directory containing the MOTIS binary, or
 #'   `NULL` to use the system PATH.
 #' @inheritDotParams motis.client::mc_oneToMany -one -many -mode -arriveBy -max -maxMatchingDistance -withDistance -.endpoint
