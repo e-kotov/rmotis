@@ -375,57 +375,9 @@ motis_one_to_many_read_batch <- function(
   dplyr::bind_rows(result_chunks)
 }
 
-#' Run Full One-to-Many Batch Routing Cycle
-#'
-#' Generates batch query files, executes the MOTIS batch routing engine, and
-#' parses the responses into a tidy table. This is a convenience wrapper that
-#' combines [motis_one_to_many_generate_batch()] and
-#' [motis_one_to_many_read_batch()] with MOTIS CLI execution.
-#'
-#' @param one The origins. Can be an `sf` object or data frame with coordinate
-#'   columns. Multiple rows are supported — each row becomes a separate
-#'   one-to-many query.
-#' @param many The destinations (shared across all origins). Same input types
-#'   as `one`.
-#' @param data_dir Path to the MOTIS data directory (the directory containing
-#'   the `data/` subfolder with imported routing data).
-#' @param mode The routing profile. One of `"WALK"`, `"BIKE"`, `"CAR"`.
-#' @param arrive_by Logical. If `FALSE` (default), routes from `one` to `many`.
-#' @param max Maximum travel time in seconds.
-#' @param maxMatchingDistance Maximum matching distance in meters.
-#' @param one_id_col Column name in `one` to use as origin identifiers.
-#' @param many_id_col Column name in `many` to use as destination identifiers.
-#' @param withDistance Logical. Include distance in the output? 
-#'   Defaults to `FALSE`.
-#' @param ... Additional MOTIS API parameters (e.g., `elevationCosts`).
-#' @param motis_path Path to the directory containing the MOTIS binary, or
-#'   `NULL` to use the system PATH.
-#' @param chunk_size Number of response lines to process at a time.
-#' @param output_callback Optional function for streaming results (see
-#'   [motis_one_to_many_read_batch()]).
-#' @param echo Logical. If `TRUE` (default), echo MOTIS batch output
-#'   (timing statistics) to the console.
-#' @param output_dir Directory where to save the temporary batch files 
-#'   (query, metadata, response). Defaults to `tempdir()`.
-#' @param keep_files Logical. If `TRUE`, the temporary batch files are kept
-#'   after execution. Defaults to `FALSE`.
-#' @param spatial_filter Logical. If `TRUE` (default), pre-filter destinations
-#'   per origin to a bounding box based on `max` travel time and typical mode
-#'   speed. Reduces match memory and I/O for unreachable destinations.
-#' @param spatial_sort Logical. If `TRUE` (default), sort origins by latitude
-#'   before generating queries. Improves MOTIS graph cache locality.
-#' @param split Integer. **Experimental**. Split destinations into this many
-#'   chunks, creating additional query lines. While this enables parallel
-#'   processing, it causes redundant Dijkstra sweeps from the same origin
-#'   (N× CPU work for N× speed). May be useful in low-memory scenarios.
-#'   Defaults to `1` (no splitting).
-#'
-#' @return A data.frame with columns `from_id`, `to_id`, `duration_s`, and
-#'   optionally `distance_m`. Returns `invisible(NULL)` when `output_callback`
-#'   is used.
-#' @export
-#' @importFrom processx run
-motis_one_to_many_batch <- function(
+#' Internal: Run Full One-to-Many Batch Routing Cycle via CLI
+#' @noRd
+  .motis_one_to_many_batch_cli <- function(
   one,
   many,
   data_dir,
@@ -441,24 +393,26 @@ motis_one_to_many_batch <- function(
   chunk_size = 10000L,
   output_callback = NULL,
   echo = TRUE,
-  output_dir = tempdir(),
+  temp_dir = tempdir(),
   keep_files = FALSE,
   spatial_filter = TRUE,
   spatial_sort = TRUE,
-  split = 1L
+  batch_size = NULL,
+  max_destinations_per_batch = NULL,
+  output_path = NULL
 ) {
   mode <- match.arg(mode)
   data_dir <- normalizePath(data_dir, mustWork = TRUE)
-  if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
   dots <- .collapse_dots(list(...))
 
   # Resolve MOTIS binary
   cmd <- resolve_motis_cmd(motis_path)
 
-  # Create temp files
-  query_file <- tempfile(pattern = "motis_query_", tmpdir = output_dir, fileext = ".txt")
-  meta_file <- paste0(query_file, ".meta")
-  response_file <- tempfile(pattern = "motis_response_", tmpdir = output_dir, fileext = ".txt")
+  # Create temp files via manager
+  tmp <- .temp_file_manager(temp_dir = temp_dir)
+  query_file <- tmp$query
+  meta_file <- tmp$meta
+  response_file <- tmp$response
   
   if (!keep_files) {
     on.exit(unlink(c(query_file, meta_file, response_file)), add = TRUE)
@@ -468,6 +422,7 @@ motis_one_to_many_batch <- function(
   one_places <- .format_place_onemany(one)
   many_places_vec <- .format_place_onemany(many)
   n_many <- length(many_places_vec)
+  n_origins <- length(one_places)
   
   # Extract IDs
   one_ids <- .get_ids(one, id_col = one_id_col)
@@ -478,11 +433,12 @@ motis_one_to_many_batch <- function(
     one_coords <- .extract_coords(one)
   }
   
-  # Spatial sort origins by latitude
+  # Spatial sort origins
   if (spatial_sort) {
-    sort_idx <- order(one_coords[, "lat"])
+    sort_idx <- .spatial_sort_points(one_coords, method = "z-order")
     one_places <- one_places[sort_idx]
     one_ids <- one_ids[sort_idx]
+    one_coords <- one_coords[sort_idx, , drop = FALSE]
   }
   
   # Prepare spatial filter if enabled
@@ -496,26 +452,24 @@ motis_one_to_many_batch <- function(
     max_radius_deg <- max_radius_km / 111.0
   }
   
-  # Split many destinations into chunks based on split parameter
-  split <- max(1L, as.integer(split))
-  if (split > n_many) split <- n_many
+  # Smart Chunking Dispatch for CLI
+  dispatch <- .smart_chunk_dispatch(
+    n_origins = n_origins, 
+    n_dests = n_many, 
+    engine = "batch",
+    batch_size = batch_size,
+    max_destinations_per_batch = max_destinations_per_batch
+  )
   
-  # Create split indices
-  if (split <= 1L) {
-    many_indices <- list(seq_len(n_many))
-  } else {
-    # Distribute indices as evenly as possible
-    many_indices <- base::split(seq_len(n_many), sort(seq_len(n_many) %% split))
-  }
+  dest_chunks <- dispatch$dest_chunks
 
   # Validate with first origin (dry-run)
   tryCatch({
     .validate_batch_params(dots)
-    .validate_batch_params(dots)
     do.call(motis.client::mc_oneToMany, c(
       list(
         one = one_places[1L],
-        many = paste(many_places_vec[many_indices[[1]]], collapse = ","),
+        many = paste(many_places_vec[dest_chunks[[1]]], collapse = ","),
         mode = mode,
         arriveBy = arrive_by,
         max = max,
@@ -531,9 +485,7 @@ motis_one_to_many_batch <- function(
   })
 
   # Generate all query lines and metadata lines
-  n_origins <- length(one_places)
-  n_chunks <- length(many_indices)
-  total_lines <- n_origins * n_chunks
+  total_lines <- n_origins * length(dest_chunks)
   
   query_lines <- character(total_lines)
   meta_lines <- character(total_lines)
@@ -541,6 +493,10 @@ motis_one_to_many_batch <- function(
   line_idx <- 0L
   for (i in seq_len(n_origins)) {
     # Apply spatial filter for this origin if enabled
+    current_many_places <- many_places_vec
+    current_many_ids <- many_ids
+    current_dest_chunks <- dest_chunks
+    
     if (spatial_filter) {
       origin_lat <- one_coords[i, "lat"]
       origin_lon <- one_coords[i, "lon"]
@@ -550,36 +506,24 @@ motis_one_to_many_batch <- function(
       lon_diff <- abs(many_coords[, "lon"] - origin_lon)
       keep_idx <- which(lat_diff <= max_radius_deg & lon_diff <= max_radius_deg)
       
-      # Filter destinations for this origin only
-      if (length(keep_idx) == 0) {
-        # No destinations in range, skip this origin entirely
-        next
-      }
+      if (length(keep_idx) == 0) next
       
-      # Use filtered destinations for this origin
-      origin_many_places <- many_places_vec[keep_idx]
-      origin_many_ids <- many_ids[keep_idx]
-      origin_n_many <- length(origin_many_places)
+      current_many_places <- many_places_vec[keep_idx]
+      current_many_ids <- many_ids[keep_idx]
       
-      # Recalculate split indices for filtered destinations
-      if (split <= 1L) {
-        origin_many_indices <- list(seq_len(origin_n_many))
+      if (length(dest_chunks) > 1) {
+         disp_tmp <- .smart_chunk_dispatch(1, length(keep_idx), "batch", 
+                                           max_destinations_per_batch = max_destinations_per_batch)
+         current_dest_chunks <- disp_tmp$dest_chunks
       } else {
-        origin_split <- min(split, origin_n_many)
-        origin_many_indices <- base::split(seq_len(origin_n_many), 
-                                           sort(seq_len(origin_n_many) %% origin_split))
+         current_dest_chunks <- list(seq_along(keep_idx))
       }
-    } else {
-      # No filtering, use all destinations
-      origin_many_places <- many_places_vec
-      origin_many_ids <- many_ids
-      origin_many_indices <- many_indices
     }
     
-    for (k in seq_along(origin_many_indices)) {
-      idx <- origin_many_indices[[k]]
-      many_chk_str <- paste(origin_many_places[idx], collapse = ",")
-      many_ids_chk <- origin_many_ids[idx]
+    for (k in seq_along(current_dest_chunks)) {
+      idx <- current_dest_chunks[[k]]
+      many_chk_str <- paste(current_many_places[idx], collapse = ",")
+      many_ids_chk <- current_many_ids[idx]
       
       line_idx <- line_idx + 1L
       
@@ -595,12 +539,11 @@ motis_one_to_many_batch <- function(
         api_endpoint = "/api/v1/one-to-many"
       )
       
-      # First element is origin ID, rest are destination IDs (for this chunk)
       meta_lines[line_idx] <- paste(c(one_ids[i], many_ids_chk), collapse = "\t")
     }
   }
 
-  # Remove empty lines (caused by skipped origins in spatial filter)
+  # Remove empty lines
   non_empty <- nzchar(query_lines)
   query_lines <- query_lines[non_empty]
   meta_lines <- meta_lines[non_empty]
@@ -630,17 +573,28 @@ motis_one_to_many_batch <- function(
   }
 
   if (echo) {
-    .print_file_info("Response file", response_file, n_lines = total_lines)
+    .print_file_info("Response file", response_file, n_lines = actual_lines)
   }
 
   # Parse responses
-  motis_one_to_many_read_batch(
+  res <- motis_one_to_many_read_batch(
     response_file = response_file,
     metadata_file = meta_file,
     arrive_by = arrive_by,
     chunk_size = chunk_size,
     output_callback = output_callback
   )
+  
+  if (is.null(output_callback) && !is.null(output_path)) {
+     out_fmt <- "csv"
+     if (grepl("\\.parquet$", output_path, ignore.case = TRUE) || dir.exists(output_path)) out_fmt <- "parquet"
+     if (grepl("\\.duckdb$", output_path, ignore.case = TRUE)) out_fmt <- "duckdb"
+     
+     .unified_output_handler(res, output_path, format = out_fmt, append = FALSE)
+     return(invisible(output_path))
+  }
+  
+  res
 }
 
 #' Build a one-to-many URL query string
