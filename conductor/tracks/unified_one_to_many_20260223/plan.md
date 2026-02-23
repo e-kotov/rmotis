@@ -1,10 +1,9 @@
 # Implementation Plan: Unified One-to-Many Routing Interface
 
 ## Phase 1: Research & Design
-- [ ] Task: Analyze current `motis_one_to_many` and `motis_one_to_many_batch` for common patterns.
-- [ ] Task: Design the internal dispatcher and unified argument mapping.
-- [ ] Task: Research Hilbert/Z-order sorting implementation in R (using `sf::st_geohash` or bit-interleaving).
-- [ ] Task: Conductor - User Manual Verification 'Phase 1: Research & Design' (Protocol in workflow.md). **Verification: R script `local-testing/verify_phase_1.R` to demonstrate spatial sorting.**
+- [x] Task: Design the internal dispatcher and unified argument mapping. 60a8bf4
+- [x] Task: Research Hilbert/Z-order sorting implementation in R (using `sf::st_geohash` or bit-interleaving). 60a8bf4
+- [~] Task: Conductor - User Manual Verification 'Phase 1: Research & Design' (Protocol in workflow.md). **Verification: R script `local-testing/verify_phase_1.R` to demonstrate spatial sorting.**
 
 ## Phase 2: Infrastructure & Helpers
 - [ ] Task: Implement `spatial_sort_points()` helper with Z-order/Hilbert support.
