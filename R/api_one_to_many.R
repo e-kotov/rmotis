@@ -43,6 +43,8 @@
 #' @param keep_files Logical. Keep temporary files? Defaults to `FALSE`.
 #' @param eol Optional line ending for batch query files (e.g., `"\n"`). 
 #'   If provided, forces this line ending even on Windows.
+#' @param motis_path Path to the directory containing the MOTIS binary, or
+#'   `NULL` to use the system PATH.
 #' @inheritDotParams motis.client::mc_oneToMany -one -many -mode -arriveBy -max -maxMatchingDistance -withDistance -.endpoint
 #'
 #' @return Depending on the `output` parameter and `output_path`, a `data.frame`, 
@@ -74,7 +76,8 @@ motis_one_to_many <- function(
   data_dir = NULL,
   temp_dir = tempdir(),
   keep_files = FALSE,
-  eol = NULL
+  eol = NULL,
+  motis_path = NULL
 )  {
   # --- 1. Argument and Input Validation ---
   engine <- match.arg(engine)
@@ -97,7 +100,7 @@ motis_one_to_many <- function(
       withDistance = withDistance, ..., 
       temp_dir = temp_dir, keep_files = keep_files, progress = progress,
       batch_size = batch_size, max_destinations_per_batch = max_destinations_per_batch,
-      output_path = output_path, eol = eol
+      output_path = output_path, eol = eol, motis_path = motis_path
     ))
   }
 

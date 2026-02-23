@@ -27,7 +27,8 @@ motis_one_to_many(
   data_dir = NULL,
   temp_dir = tempdir(),
   keep_files = FALSE,
-  eol = NULL
+  eol = NULL,
+  motis_path = NULL
 )
 }
 \arguments{
@@ -129,6 +130,9 @@ multiple requests to avoid memory or timeout issues.}
 
 \item{eol}{Optional line ending for batch query files (e.g., \code{"\\n"}).
 If provided, forces this line ending even on Windows.}
+
+\item{motis_path}{Path to the directory containing the MOTIS binary, or
+\code{NULL} to use the system PATH.}
 }
 \value{
 Depending on the \code{output} parameter and \code{output_path}, a \code{data.frame},
