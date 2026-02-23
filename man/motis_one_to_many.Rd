@@ -15,13 +15,18 @@ motis_one_to_many(
   maxMatchingDistance = 1000,
   withDistance = FALSE,
   ...,
+  engine = c("api", "batch"),
   output = c("data.frame", "raw_list"),
   parallel = TRUE,
   backend = c("auto", "httr2", "mirai"),
-  batch_size = 16L,
+  batch_size = NULL,
+  max_destinations_per_batch = NULL,
   output_path = NULL,
   checkpoint_file = NULL,
-  progress = TRUE
+  progress = TRUE,
+  data_dir = NULL,
+  temp_dir = tempdir(),
+  keep_files = FALSE
 )
 }
 \arguments{
@@ -85,38 +90,49 @@ Allowed values: NONE, LOW, HIGH.}
     \item{\code{.paginate}}{A logical, character string, or function to enable pagination. If TRUE (or "link_header"), uses Link headers. Other options: "page_param", "cursor_param", or a custom function. See \code{oa3_paginate()}.}
   }}
 
+\item{engine}{Execution engine:
+\itemize{
+\item \code{"api"} (default): Uses the MOTIS POST API. Supports parallel backends.
+\item \code{"batch"}: Uses the MOTIS CLI batch command. \strong{Recommended for very large
+datasets} (millions of routes). Requires \code{data_dir}.
+}}
+
 \item{output}{The desired output format. One of:
 \itemize{
 \item \code{"data.frame"} (default): A tidy data frame.
-\item \code{"raw_list"}: The raw parsed JSON response (only for non-parallel execution).
+\item \code{"raw_list"}: The raw parsed JSON response (only for \code{engine='api'} and non-parallel execution).
 }}
 
-\item{parallel}{Logical. Enable parallel processing? Defaults to \code{FALSE}.
-If \code{TRUE}, \code{output_file}, \code{batch_size}, and \code{backend} are used.}
+\item{parallel}{Logical. Enable parallel processing for the API engine?
+Defaults to \code{TRUE}.}
 
-\item{backend}{Parallel backend:
-\itemize{
-\item \code{"auto"} (default): Uses \code{"mirai"} if available and daemons are set up, otherwise \code{"httr2"}.
-\item \code{"httr2"}: Low-overhead threaded parallelism. Best for small-latency, small-payload requests.
-\item \code{"mirai"}: \strong{Recommended for large workloads}. Uses separate R processes.
-Slightly higher overhead, but parses large JSON responses in parallel, avoiding the
-main R thread bottleneck. Requires \code{mirai::daemons()}.
-}}
+\item{backend}{Parallel backend for API engine: \code{"auto"}, \code{"httr2"}, or \code{"mirai"}.}
 
-\item{batch_size}{Number of origins to process in parallel per batch.}
+\item{batch_size}{Number of origins to process per batch/request.}
 
-\item{output_path}{Optional path to write results incrementally (\code{.csv} or \strong{Directory} of \code{.parquet} files).}
+\item{max_destinations_per_batch}{Optional limit to split destinations into
+multiple requests to avoid memory or timeout issues.}
 
-\item{checkpoint_file}{Optional path for checkpointing progress.}
+\item{output_path}{Optional path to write results incrementally (\code{.csv},
+\code{.duckdb}, or \strong{Directory} of \code{.parquet} files).}
+
+\item{checkpoint_file}{Optional path for checkpointing progress (API engine only).}
 
 \item{progress}{Logical. Display progress bar/messages?}
+
+\item{data_dir}{Path to MOTIS data directory. Required if \code{engine='batch'}.}
+
+\item{temp_dir}{Directory for temporary batch files. Defaults to \code{tempdir()}.}
+
+\item{keep_files}{Logical. Keep temporary files? Defaults to \code{FALSE}.}
 }
 \value{
-Depending on the \code{output} parameter, a \code{data.frame} or a list.
-If \code{output_path} is specified, returns the path invisibly.
+Depending on the \code{output} parameter and \code{output_path}, a \code{data.frame},
+a list, or the \code{output_path} invisibly.
 }
 \description{
-This function computes travel time and distance from a single origin to
+This function computes travel time and distance from origin(s) to
 multiple destinations (or vice versa). It supports both simple single-request
-execution and robust parallel execution for large datasets.
+execution and robust parallel/batch execution for large datasets using either
+the MOTIS API or the MOTIS CLI batch engine.
 }

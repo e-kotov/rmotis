@@ -1,4 +1,3 @@
-context("smart_chunking")
 
 test_that(".smart_chunk_dispatch handles API defaults", {
   d <- rmotis:::.smart_chunk_dispatch(100, 1000, engine = "api")

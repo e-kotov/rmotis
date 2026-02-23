@@ -2,7 +2,7 @@
 % Please edit documentation in R/api_one_to_many.R
 \name{motis_one_to_many_batch}
 \alias{motis_one_to_many_batch}
-\title{Run Full One-to-Many Batch Routing Cycle}
+\title{Run Full One-to-Many Batch Routing Cycle via CLI}
 \usage{
 motis_one_to_many_batch(
   one,
@@ -28,71 +28,55 @@ motis_one_to_many_batch(
 )
 }
 \arguments{
-\item{one}{The origins. Can be an \code{sf} object or data frame with coordinate
-columns. Multiple rows are supported — each row becomes a separate
-one-to-many query.}
+\item{one}{Origin(s). Can be a data frame/tibble with coordinate columns,
+an \code{sf} object, or a vector/matrix of coordinates.}
 
-\item{many}{The destinations (shared across all origins). Same input types
-as \code{one}.}
+\item{many}{Destination(s). Same format as \code{one}.}
 
-\item{data_dir}{Path to the MOTIS data directory (the directory containing
-the \verb{data/} subfolder with imported routing data).}
+\item{data_dir}{Path to MOTIS data directory. Required if \code{engine='batch'}.}
 
-\item{mode}{The routing profile. One of \code{"WALK"}, \code{"BIKE"}, \code{"CAR"}.}
+\item{mode}{The routing profile to use. Defaults to \code{"WALK"}.}
 
-\item{arrive_by}{Logical. If \code{FALSE} (default), routes from \code{one} to \code{many}.}
+\item{arrive_by}{Logical. If \code{FALSE} (the default), calculates routes from
+\code{one} to \code{many}. If \code{TRUE}, calculates routes from \code{many} to \code{one}.}
 
-\item{max}{Maximum travel time in seconds.}
+\item{max}{maximum travel time in seconds}
 
-\item{maxMatchingDistance}{Maximum matching distance in meters.}
+\item{maxMatchingDistance}{maximum matching distance in meters}
 
-\item{one_id_col}{Column name in \code{one} to use as origin identifiers.}
+\item{one_id_col}{The name of the column in \code{one} to use for identifying
+the point in the output. Defaults to \code{"id"}.}
 
-\item{many_id_col}{Column name in \code{many} to use as destination identifiers.}
+\item{many_id_col}{The name of the column in \code{many} to use for identifying
+the point in the output. Defaults to \code{"id"}.}
 
 \item{withDistance}{Logical. Include distance in the output?
 Defaults to \code{FALSE}.}
 
-\item{...}{Additional MOTIS API parameters (e.g., \code{elevationCosts}).}
+\item{...}{Additional MOTIS API parameters.}
 
 \item{motis_path}{Path to the directory containing the MOTIS binary, or
 \code{NULL} to use the system PATH.}
 
-\item{chunk_size}{Number of response lines to process at a time.}
-
-\item{output_callback}{Optional function for streaming results (see
-\code{\link[=motis_one_to_many_read_batch]{motis_one_to_many_read_batch()}}).}
-
 \item{echo}{Logical. If \code{TRUE} (default), echo MOTIS batch output
 (timing statistics) to the console.}
 
-\item{output_dir}{Directory where to save the temporary batch files
-(query, metadata, response). Defaults to \code{tempdir()}.}
+\item{output_dir}{Directory where to save the temporary batch files.
+Mapped to \code{temp_dir} in the new interface.}
 
-\item{keep_files}{Logical. If \code{TRUE}, the temporary batch files are kept
-after execution. Defaults to \code{FALSE}.}
+\item{keep_files}{Logical. Keep temporary files? Defaults to \code{FALSE}.}
 
-\item{spatial_filter}{Logical. If \code{TRUE} (default), pre-filter destinations
-per origin to a bounding box based on \code{max} travel time and typical mode
-speed. Reduces match memory and I/O for unreachable destinations.}
+\item{spatial_filter}{Logical. Pre-filter destinations per origin.}
 
-\item{spatial_sort}{Logical. If \code{TRUE} (default), sort origins by latitude
-before generating queries. Improves MOTIS graph cache locality.}
+\item{spatial_sort}{Logical. Sort origins spatially.}
 
-\item{split}{Integer. \strong{Experimental}. Split destinations into this many
-chunks, creating additional query lines. While this enables parallel
-processing, it causes redundant Dijkstra sweeps from the same origin
-(N× CPU work for N× speed). May be useful in low-memory scenarios.
-Defaults to \code{1} (no splitting).}
+\item{split}{Integer. Mapped to \code{max_destinations_per_batch} if > 1.}
 }
 \value{
-A data.frame with columns \code{from_id}, \code{to_id}, \code{duration_s}, and
-optionally \code{distance_m}. Returns \code{invisible(NULL)} when \code{output_callback}
-is used.
+A data.frame or \code{output_path} invisibly.
 }
 \description{
-Generates batch query files, executes the MOTIS batch routing engine, and
-parses the responses into a tidy table. This is a convenience wrapper that
-combines \code{\link[=motis_one_to_many_generate_batch]{motis_one_to_many_generate_batch()}} and
-\code{\link[=motis_one_to_many_read_batch]{motis_one_to_many_read_batch()}} with MOTIS CLI execution.
+\ifelse{html}{\href{https://lifecycle.r-lib.org/articles/stages.html#deprecated}{\figure{lifecycle-deprecated.svg}{options: alt='[Deprecated]'}}}{\strong{[Deprecated]}}
+
+This function is now a wrapper around \code{\link[=motis_one_to_many]{motis_one_to_many()}} with \code{engine = "batch"}.
 }

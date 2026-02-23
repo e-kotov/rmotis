@@ -463,7 +463,7 @@ motis_one_to_many_read_batch <- function(
 
 #' Internal: Run Full One-to-Many Batch Routing Cycle via CLI
 #' @noRd
-  .motis_one_to_many_batch_cli <- function(
+.motis_one_to_many_batch_cli <- function(
   one,
   many,
   data_dir,

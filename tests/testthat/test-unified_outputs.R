@@ -1,4 +1,4 @@
-context("unified_outputs")
+
 options(rmotis.wait_for_server = FALSE)
 
 # Mock origins and destinations
