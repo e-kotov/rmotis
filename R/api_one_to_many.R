@@ -880,22 +880,40 @@ motis_one_to_many_batch <- function(
   # Extract coordinates for spatial sort/filter
   one_coords <- .extract_coords(one)
   
-  # Spatial sort origins by latitude checks
+  # Spatial sort origins
   spatial_sort <- dots[["spatial_sort"]] %||% TRUE
   dots[["spatial_sort"]] <- NULL # Consume
   
   if (spatial_sort) {
-    sort_idx <- order(one_coords[, "lat"])
+    sort_idx <- .spatial_sort_points(one_coords, method = "z-order")
     one_places <- one_places[sort_idx]
     one_ids <- one_ids[sort_idx]
     one_coords <- one_coords[sort_idx, , drop = FALSE]
-    if (progress) message("v Sorted origins by latitude")
+    if (progress) message("v Sorted origins spatially (z-order)")
+  }
+  
+  # Smart Chunking Dispatch
+  max_dest_per_batch <- dots[["max_destinations_per_batch"]]
+  dots[["max_destinations_per_batch"]] <- NULL
+  
+  dispatch <- .smart_chunk_dispatch(
+    n_origins = n_origins, 
+    n_dests = n_dests, 
+    engine = "api",
+    batch_size = batch_size,
+    max_destinations_per_batch = max_dest_per_batch
+  )
+  
+  batch_size <- dispatch$batch_size
+  dest_chunks <- dispatch$dest_chunks
+  n_dest_chunks <- length(dest_chunks)
+  
+  if (progress && n_dest_chunks > 1) {
+    message(sprintf("v Split destinations into %d chunks", n_dest_chunks))
   }
   
   if (!is.null(output_path) && file.exists(output_path) && !dir.exists(output_path)) {
-    # If path exists and is a file (e.g. valid CSV), check if we can resume/append
-    # But checkpoint logic handles resumption via ID skipping.
-    # Here we just verify output consistency.
+    # ... existing logic or remove if handled by unified_output_handler
   }
   
   if (!is.null(checkpoint_file) && file.exists(checkpoint_file)) {
@@ -951,17 +969,6 @@ motis_one_to_many_batch <- function(
   result_chunks <- list()
   chunk_idx <- 0L
   
-  if (!is.null(output_path)) {
-     is_parquet <- grepl("\\.parquet$", output_path, ignore.case = TRUE)
-     is_csv <- grepl("\\.csv$", output_path, ignore.case = TRUE)
-     
-     if (is_parquet) {
-       if (!dir.exists(output_path)) dir.create(output_path, recursive = TRUE)
-       parquet_batch_num <- length(list.files(output_path, pattern = "\\.parquet$"))
-     }
-     csv_written <- file.exists(output_path) && file.size(output_path) > 0 && !dir.exists(output_path)
-  } 
-  
   # Backend selection
   use_mirai <- FALSE
   if (parallel) {
@@ -983,9 +990,7 @@ motis_one_to_many_batch <- function(
     } else if (parallel) {
       message("v Using 'httr2' backend for threaded parallelism")
     } else {
-      # This is the calc path but non-parallel - technically should not be reachable 
-      # if parallel=FALSE dispatched to .calc, but good for diagnostics.
-      message("v Using sequential execution (calculation path)")
+      message("v Using sequential execution")
     }
   }
   
@@ -1003,57 +1008,67 @@ motis_one_to_many_batch <- function(
       message(sprintf("Batch %d/%d: origins %d-%d", batch_i, n_batches, start_idx, end_idx))
     }
     
-    if (use_mirai) {
-      batch_results <- .process_batch_mirai(
-        origin_indices = batch_indices,
-        one_places = one_places,
-        many_places_vec = many_places_vec,
-        one_ids = one_ids,
-        many_ids = many_ids,
-        one_coords = one_coords,
-        many_coords = many_coords,
-        max_radius_deg = max_radius_deg,
-        mode = mode, arrive_by = arrive_by,
-        max = max, maxMatchingDistance = maxMatchingDistance,
-        withDistance = withDistance, # Promoted withDistance
-        dot_params = dot_params,
-        .server = .server
-      )
-    } else {
-      batch_results <- .process_parallel_batch(
-        origin_indices = batch_indices,
-        one_places = one_places,
-        many_places_vec = many_places_vec,
-        one_ids = one_ids,
-        many_ids = many_ids,
-        one_coords = one_coords,
-        many_coords = many_coords,
-        max_radius_deg = max_radius_deg,
-        mode = mode, arrive_by = arrive_by,
-        max = max, maxMatchingDistance = maxMatchingDistance,
-        withDistance = withDistance,
-        dots = dot_params, 
-        .server = .server,
-        progress = progress
-      )
+    # Nested loop for destination chunks
+    for (dest_i in seq_along(dest_chunks)) {
+      idx_d <- dest_chunks[[dest_i]]
+      
+      if (progress && n_dest_chunks > 1) {
+        message(sprintf("  -> Dest chunk %d/%d (%d destinations)", dest_i, n_dest_chunks, length(idx_d)))
+      }
+      
+      if (use_mirai) {
+        batch_results <- .process_batch_mirai(
+          origin_indices = batch_indices,
+          one_places = one_places,
+          many_places_vec = many_places_vec[idx_d],
+          one_ids = one_ids,
+          many_ids = many_ids[idx_d],
+          one_coords = one_coords,
+          many_coords = if(!is.null(many_coords)) many_coords[idx_d, , drop=FALSE] else NULL,
+          max_radius_deg = max_radius_deg,
+          mode = mode, arrive_by = arrive_by,
+          max = max, maxMatchingDistance = maxMatchingDistance,
+          withDistance = withDistance,
+          dot_params = dot_params,
+          .server = .server
+        )
+      } else {
+        batch_results <- .process_parallel_batch(
+          origin_indices = batch_indices,
+          one_places = one_places,
+          many_places_vec = many_places_vec[idx_d],
+          one_ids = one_ids,
+          many_ids = many_ids[idx_d],
+          one_coords = one_coords,
+          many_coords = if(!is.null(many_coords)) many_coords[idx_d, , drop=FALSE] else NULL,
+          max_radius_deg = max_radius_deg,
+          mode = mode, arrive_by = arrive_by,
+          max = max, maxMatchingDistance = maxMatchingDistance,
+          withDistance = withDistance,
+          dots = dot_params, 
+          .server = .server,
+          progress = progress && (n_dest_chunks == 1) # reduce noise if many chunks
+        )
+      }
+      
+      # Save results via unified_output_handler
+      if (is.null(output_path)) {
+        chunk_idx <- chunk_idx + 1L
+        result_chunks[[chunk_idx]] <- batch_results
+      } else {
+        # Determine format from extension
+        out_fmt <- "csv"
+        if (grepl("\\.parquet$", output_path, ignore.case = TRUE) || dir.exists(output_path)) out_fmt <- "parquet"
+        if (grepl("\\.duckdb$", output_path, ignore.case = TRUE)) out_fmt <- "duckdb"
+        
+        .unified_output_handler(
+          results = batch_results,
+          output_path = output_path,
+          format = out_fmt,
+          append = TRUE # always append in the loop
+        )
+      }
     }
-    
-    # Save/Append
-    if (!is.null(output_path)) {
-      .append_results(
-        results = batch_results,
-        output_path = output_path,
-        is_parquet = if (exists("is_parquet")) is_parquet else FALSE,
-        is_csv = if (exists("is_csv")) is_csv else TRUE,
-        csv_written = if (exists("csv_written")) csv_written else FALSE,
-        parquet_batch_num = if (exists("parquet_batch_num")) parquet_batch_num else 0
-      )
-      if (exists("is_parquet") && is_parquet) parquet_batch_num <- parquet_batch_num + 1
-      if (exists("is_csv") && is_csv) csv_written <- TRUE
-    } else {
-      chunk_idx <- chunk_idx + 1L
-      result_chunks[[chunk_idx]] <- batch_results
-    } 
     
     if (!is.null(checkpoint_file)) {
       cat(one_ids[batch_indices], file = checkpoint_file, sep = "\n", append = TRUE)
@@ -1370,7 +1385,8 @@ motis_one_to_many_batch <- function(
   has_distance <- FALSE
   
   if (is.list(response_body) && length(response_body) > 0) {
-    for (i in seq_along(response_body)) {
+    # Only iterate up to n_dests to avoid length mismatch if response is longer
+    for (i in seq_len(min(length(response_body), n_dests))) {
       route <- response_body[[i]]
       if (!is.null(route$duration)) durations[i] <- as.numeric(route$duration)
       if (!is.null(route$distance)) {
@@ -1393,22 +1409,6 @@ motis_one_to_many_batch <- function(
   }
   df
 }
-
-#' Append results helper
-#' @noRd
-.append_results <- function(results, output_path, is_parquet, is_csv, csv_written, parquet_batch_num) {
-  if (is_parquet) {
-    batch_file <- file.path(output_path, sprintf("batch_%04d.parquet", parquet_batch_num + 1))
-    if (rlang::is_installed("arrow")) arrow::write_parquet(results, batch_file) else stop("'arrow' required")
-  } else {
-    if (rlang::is_installed("data.table") && requireNamespace("data.table", quietly = TRUE)) {
-      data.table::fwrite(results, file = output_path, append = csv_written, col.names = !csv_written)
-    } else {
-      utils::write.table(results, file = output_path, append = csv_written, col.names = !csv_written,
-                         row.names = FALSE, sep = ",", quote = TRUE)
-    }
-  }
-} 
 
 #' Wait for server helper
 #' @noRd
