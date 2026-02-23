@@ -12,6 +12,8 @@
 - **sf:** For handling spatial data (Simple Features).
 - **googlePolylines:** For decoding polyline-encoded geometries from MOTIS.
 - **glue:** For clean string interpolation.
+- **duckdb / DBI:** For high-performance storage and streaming of large routing results.
+- **arrow:** For efficient Parquet storage and partitioned datasets.
 
 ## UI & Visualization
 - **Shiny / shinyjs:** For the interactive routing and debugging GUI.
