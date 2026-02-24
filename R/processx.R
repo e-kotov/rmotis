@@ -207,6 +207,8 @@ motis_set_server_address <- function(
 #'   \item `stoptimes_max_results`: Max results for stoptimes (default: 256).
 #'   \item `plan_max_results`: Max results for plan queries (default: 256).
 #'   \item `plan_max_search_window_minutes`: Max search window in minutes (max: 21600).
+#'   \item `onetomany_max_many`: Maximum accepted number of `many` locations
+#'     for one-to-many requests.
 #'   \item `onetoall_max_results`: Max results for one-to-all queries.
 #'   \item `onetoall_max_travel_minutes`: Max travel duration for one-to-all.
 #'   \item `routing_max_timeout_seconds`: Max duration for a routing query (default: 90).
@@ -334,6 +336,8 @@ motis_set_config <- function(config_path, ..., force = FALSE) {
 #' This function automatically targets the server configuration (usually in
 #' the `data/` subdirectory).
 #'
+#' The preset includes `limits.onetomany_max_many = 30000`.
+#'
 #' @param path Path to the `config.yml` file, the `data/` directory,
 #'   or the root MOTIS project directory.
 #' @param force A logical. If `TRUE`, skips user confirmation.
@@ -347,6 +351,7 @@ motis_unlock_limits <- function(path, force = FALSE) {
     plan_max_results = 1000L,
     plan_max_search_window_minutes = 21600L,
     stops_max_results = 10000L,
+    onetomany_max_many = 30000L,
     onetoall_max_results = 1000000L,
     onetoall_max_travel_minutes = 10000L,
     routing_max_timeout_seconds = 300L,

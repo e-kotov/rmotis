@@ -449,7 +449,8 @@ debug_msg <- function(...) {
   strict_int_fields <- c(
     "n_threads", "port", "db_size", "flush_threshold",
     "num_days", "update_interval", "http_timeout",
-    "stoptimes_max_results", "plan_max_results", "onetoall_max_results",
+    "stoptimes_max_results", "plan_max_results", "onetomany_max_many",
+    "onetoall_max_results",
     "onetoall_max_travel_minutes", "routing_max_timeout_seconds",
     "gtfsrt_expose_max_trip_updates", "link_stop_distance", "max_footpath_length"
   )

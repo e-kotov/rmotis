@@ -54,4 +54,17 @@ test_that("motis_set_config handles numeric types correctly", {
   
   config_content <- readLines(tmp_config)
   expect_true(any(grepl("max_matching_distance: 25\\.5", config_content)))
+
+  # 5. Test onetomany_max_many is serialized as integer
+  motis_set_config(
+    tmp_config,
+    limits = list(onetomany_max_many = 128.0),
+    force = TRUE
+  )
+
+  config_content <- readLines(tmp_config)
+  expect_true(
+    any(grepl("onetomany_max_many: 128$", config_content)) &&
+      !any(grepl("onetomany_max_many: 128\\.0$", config_content))
+  )
 })
