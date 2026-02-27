@@ -87,31 +87,108 @@ motis_one_to_many <- function(
   mode <- match.arg(mode)
   backend <- match.arg(backend)
   
+  .motis_one_to_many_infra(
+    one = one,
+    many = many,
+    one_id_col = one_id_col,
+    many_id_col = many_id_col,
+    mode = mode,
+    arrive_by = arrive_by,
+    duration_val = max,
+    maxMatchingDistance = maxMatchingDistance,
+    withDistance = withDistance,
+    ...,
+    engine = engine,
+    output = output,
+    parallel = parallel,
+    backend = backend,
+    batch_size = batch_size,
+    max_destinations_per_batch = max_destinations_per_batch,
+    output_path = output_path,
+    checkpoint_file = checkpoint_file,
+    progress = progress,
+    data_dir = data_dir,
+    temp_dir = temp_dir,
+    keep_files = keep_files,
+    eol = eol,
+    motis_path = motis_path,
+    api_endpoint = "/api/v1/one-to-many",
+    duration_key = "max"
+  )
+}
+
+#' Internal: Infrastructure for One-to-Many Routing
+#' @noRd
+.motis_one_to_many_infra <- function(
+  one,
+  many,
+  one_id_col = "id",
+  many_id_col = "id",
+  mode = "WALK",
+  arrive_by = FALSE,
+  duration_val = 7200,
+  maxMatchingDistance = 1000,
+  withDistance = FALSE,
+  ...,
+  engine = c("api", "batch"),
+  output = c("data.frame", "raw_list"),
+  parallel = TRUE,
+  backend = c("auto", "httr2", "mirai"),
+  batch_size = NULL,
+  max_destinations_per_batch = NULL,
+  output_path = NULL,
+  checkpoint_file = NULL,
+  progress = TRUE,
+  data_dir = NULL,
+  temp_dir = tempdir(),
+  keep_files = FALSE,
+  eol = NULL,
+  motis_path = NULL,
+  api_endpoint = "/api/v1/one-to-many",
+  duration_key = "max",
+  client_fun = motis.client::mc_oneToMany
+) {
+  # --- 1. Argument and Input Validation ---
+  engine <- if (is.character(engine)) match.arg(engine) else engine
+  output <- if (is.character(output)) match.arg(output) else output
+  backend <- if (is.character(backend)) match.arg(backend) else backend
+  
   # Format inputs to "lat;lon" strings
   one_places <- .format_place_onemany(one, id_col = one_id_col)
   many_places_vec <- .format_place_onemany(many, id_col = many_id_col)
   
-  # --- 2. Dispatch Logic ---
+  # Extract spatial filter from dots if present, default to FALSE for API backward compatibility
+  dots <- list(...)
+  spatial_filter <- if ("spatial_filter" %in% names(dots)) dots$spatial_filter else FALSE
   
   if (engine == "batch") {
     if (is.null(data_dir)) stop("'data_dir' is required for engine='batch'", call. = FALSE)
+    
+    # Remove these from dots as they are passed explicitly
+    dots$api_endpoint <- NULL
+    dots$duration_key <- NULL
+    
     return(.motis_one_to_many_batch_cli(
       one = one, many = many, data_dir = data_dir, mode = mode,
-      arrive_by = arrive_by, max = max, maxMatchingDistance = maxMatchingDistance,
+      arrive_by = arrive_by, max = duration_val, maxMatchingDistance = maxMatchingDistance,
       one_id_col = one_id_col, many_id_col = many_id_col,
       withDistance = withDistance, ..., 
       temp_dir = temp_dir, keep_files = keep_files, progress = progress,
       batch_size = batch_size, max_destinations_per_batch = max_destinations_per_batch,
-      output_path = output_path, eol = eol, motis_path = motis_path
+      output_path = output_path, eol = eol, motis_path = motis_path,
+      api_endpoint = api_endpoint,
+      duration_key = duration_key,
+      client_fun = client_fun
     ))
   }
 
   # API Engine logic
   
   # Simple path = 1 origin AND no parallel requested AND no file streaming AND no checkpointing
-  # AND no destination splitting requested
+  # AND no destination splitting requested AND no spatial filter requested
   is_simple <- !parallel && length(one_places) == 1 && is.null(output_path) && 
-               is.null(checkpoint_file) && is.null(max_destinations_per_batch)
+               is.null(checkpoint_file) && is.null(max_destinations_per_batch) &&
+               !isTRUE(spatial_filter)
   
   if (is_simple) {
     return(.motis_one_to_many_simple(
@@ -120,10 +197,12 @@ motis_one_to_many <- function(
       one = one, many = many, # pass for ID extraction
       one_id_col = one_id_col, many_id_col = many_id_col,
       mode = mode, arrive_by = arrive_by,
-      max = max, maxMatchingDistance = maxMatchingDistance,
+      max = duration_val, maxMatchingDistance = maxMatchingDistance,
       withDistance = withDistance,
       output = output,
-      ...
+      ...,
+      api_endpoint = api_endpoint,
+      duration_key = duration_key
     ))
   } else {
     if (output == "raw_list") {
@@ -139,16 +218,18 @@ motis_one_to_many <- function(
       many_id_col = many_id_col,
       mode = mode,
       arrive_by = arrive_by,
-      max = max,
+      max = duration_val,
       maxMatchingDistance = maxMatchingDistance,
       withDistance = withDistance,
-      dots = list(...), # Capture dots
+      dots = dots, # Use already captured dots
       backend = backend,
       batch_size = batch_size %||% 16L,
       output_path = output_path,
       checkpoint_file = checkpoint_file,
       progress = progress,
-      parallel = parallel
+      parallel = parallel,
+      api_endpoint = api_endpoint,
+      duration_key = duration_key
     ))
   }
 }
@@ -481,7 +562,7 @@ motis_one_to_many_read_batch <- function(
   one,
   many,
   data_dir,
-  mode = c("WALK", "BIKE", "CAR"),
+  mode = c("WALK", "BIKE", "CAR", "TRANSIT"),
   arrive_by = FALSE,
   max = 7200,
   maxMatchingDistance = 1000,
@@ -501,10 +582,22 @@ motis_one_to_many_read_batch <- function(
   batch_size = NULL,
   max_destinations_per_batch = NULL,
   output_path = NULL,
-  eol = NULL
+  eol = NULL,
+  api_endpoint = "/api/v1/one-to-many",
+  duration_key = "max",
+  client_fun = motis.client::mc_oneToMany
 ) {
   mode <- match.arg(mode)
   data_dir <- normalizePath(data_dir, mustWork = TRUE)
+  
+  # Heuristic: if data_dir contains a 'data' subfolder with config.yml, 
+  # but data_dir itself doesn't have tt.bin, use the subfolder.
+  if (!file.exists(file.path(data_dir, "tt.bin")) && 
+      dir.exists(file.path(data_dir, "data")) && 
+      file.exists(file.path(data_dir, "data", "tt.bin"))) {
+    data_dir <- file.path(data_dir, "data")
+  }
+  
   dots <- .collapse_dots(list(...))
 
   # Resolve MOTIS binary
@@ -547,9 +640,11 @@ motis_one_to_many_read_batch <- function(
   if (spatial_filter) {
     many_coords <- .extract_coords(many)
     # Speed estimates (km/h)
-    max_speed <- switch(mode, WALK = 6, BIKE = 20, CAR = 130)
+    max_speed <- switch(mode, WALK = 6, BIKE = 20, CAR = 130, TRANSIT = 100)
     # Max travel distance in km with 20% buffer
-    max_radius_km <- (max * max_speed / 3600) * 1.2
+    # maxTravelTime is in minutes, max is in seconds
+    duration_sec <- if (duration_key == "maxTravelTime") max * 60 else max
+    max_radius_km <- (duration_sec * max_speed / 3600) * 1.2
   }
   
   # Smart Chunking Dispatch for CLI
@@ -566,20 +661,25 @@ motis_one_to_many_read_batch <- function(
   # Validate with first origin (dry-run)
   tryCatch({
     .validate_batch_params(dots)
-    do.call(motis.client::mc_oneToMany, c(
-      list(
-        one = one_places[1L],
-        many = paste(many_places_vec[dest_chunks[[1]]], collapse = ","),
-        mode = mode,
-        arriveBy = arrive_by,
-        max = max,
-        maxMatchingDistance = maxMatchingDistance,
-        withDistance = withDistance,
-        .build_only = TRUE,
-        .server = "http://localhost:8080"
-      ),
-      dots
-    ))
+    # Correctly map duration for validation
+    val_args <- list(
+      one = one_places[1L],
+      many = paste(many_places_vec[dest_chunks[[1]]], collapse = ","),
+      arriveBy = arrive_by,
+      maxMatchingDistance = maxMatchingDistance,
+      .build_only = TRUE,
+      .server = "http://localhost:8080"
+    )
+    
+    # Conditionally include parameters not supported by intermodal API
+    if (api_endpoint == "/api/v1/one-to-many") {
+      val_args$mode <- mode
+      val_args$withDistance <- withDistance
+    }
+    
+    val_args[[duration_key]] <- max
+    
+    do.call(client_fun, c(val_args, dots))
   }, error = function(e) {
     stop("Invalid MOTIS API parameters: ", e$message, call. = FALSE)
   })
@@ -639,7 +739,8 @@ motis_one_to_many_read_batch <- function(
         maxMatchingDistance = maxMatchingDistance,
         withDistance = withDistance,
         dots = dots,
-        api_endpoint = "/api/v1/one-to-many"
+        api_endpoint = api_endpoint,
+        duration_key = duration_key
       )
       
       meta_lines[line_idx] <- paste(c(one_ids[i], many_ids_chk), collapse = "\t")
@@ -733,20 +834,26 @@ motis_one_to_many_read_batch <- function(
   maxMatchingDistance,
   withDistance,
   dots,
-  api_endpoint
+  api_endpoint,
+  duration_key = "max"
 ) {
-  static_params <- c(
-    list(
-      one = one_place,
-      many = many_places_str,
-      mode = mode,
-      arriveBy = arrive_by,
-      max = max,
-      maxMatchingDistance = maxMatchingDistance,
-      withDistance = withDistance
-    ),
-    dots
+  params_list <- list(
+    one = one_place,
+    many = many_places_str,
+    arriveBy = arrive_by,
+    maxMatchingDistance = maxMatchingDistance
   )
+  
+  # Conditionally include parameters not supported by intermodal API
+  if (api_endpoint == "/api/v1/one-to-many") {
+    params_list$mode <- mode
+    params_list$withDistance <- withDistance
+  }
+  
+  # Inject duration with correct key
+  params_list[[duration_key]] <- max
+  
+  static_params <- c(params_list, dots)
 
   paste0(
     api_endpoint,
@@ -861,7 +968,9 @@ motis_one_to_many_read_batch <- function(
   max, maxMatchingDistance,
   withDistance,
   output,
-  ...
+  ...,
+  api_endpoint = "/api/v1/one-to-many",
+  duration_key = "max"
 ) {
   dots <- list(...)
   user_server <- dots[[".server"]]
@@ -872,18 +981,25 @@ motis_one_to_many_read_batch <- function(
   body_params <- list(
     one = unname(one_place),
     many = I(unname(many_places_vec)),
-    mode = unname(mode),
     arriveBy = unname(arrive_by),
-    max = unname(max),
     maxMatchingDistance = unname(maxMatchingDistance),
-    elevationCosts = dots$elevationCosts %||% "NONE",
-    withDistance = withDistance
+    elevationCosts = dots$elevationCosts %||% "NONE"
   )
+  
+  # Conditionally include parameters not supported by intermodal API
+  if (api_endpoint == "/api/v1/one-to-many") {
+    body_params$mode <- unname(mode)
+    body_params$withDistance <- withDistance
+  }
+  
+  # Inject duration with correct key
+  body_params[[duration_key]] <- unname(max)
+  
   dots$elevationCosts <- NULL
   if (length(dots) > 0) body_params <- utils::modifyList(body_params, dots)
   
   server_url <- user_server %||% .get_server_url()
-  url <- paste0(sub("/$", "", server_url), "/api/v1/one-to-many")
+  url <- paste0(sub("/$", "", server_url), api_endpoint)
   
   req <- httr2::request(url) |>
     httr2::req_method("POST") |>
@@ -922,7 +1038,9 @@ motis_one_to_many_read_batch <- function(
   output_path,
   checkpoint_file,
   progress,
-  parallel
+  parallel,
+  api_endpoint = "/api/v1/one-to-many",
+  duration_key = "max"
 ) { 
   # Setup code
   user_server <- dots[[".server"]]
@@ -1009,7 +1127,7 @@ motis_one_to_many_read_batch <- function(
   }
   
   # Spatial Filter Logic
-  spatial_filter <- dots[["spatial_filter"]] %||% TRUE
+  spatial_filter <- dots[["spatial_filter"]] %||% FALSE
   dots[["spatial_filter"]] <- NULL
   
   many_coords <- NULL
@@ -1021,11 +1139,14 @@ motis_one_to_many_read_batch <- function(
     dots[["max_speed_kmh"]] <- NULL
     
     if (is.null(max_speed_kmh)) {
-      max_speed <- switch(mode, WALK = 6, BIKE = 20, CAR = 130)
+      max_speed <- switch(mode, WALK = 6, BIKE = 20, CAR = 130, TRANSIT = 100)
     } else {
       max_speed <- max_speed_kmh
     }
-    max_radius_km <- (max * max_speed / 3600) * 1.2
+    
+    # maxTravelTime is in minutes, max is in seconds
+    duration_sec <- if (duration_key == "maxTravelTime") max * 60 else max
+    max_radius_km <- (duration_sec * max_speed / 3600) * 1.2
     
     if (progress) message(sprintf("v Spatial filter enabled (radius: %.2f km)", max_radius_km))
   }
@@ -1097,7 +1218,9 @@ motis_one_to_many_read_batch <- function(
           max = max, maxMatchingDistance = maxMatchingDistance,
           withDistance = withDistance,
           dot_params = dot_params,
-          .server = .server
+          .server = .server,
+          api_endpoint = api_endpoint,
+          duration_key = duration_key
         )
       } else {
         batch_results <- .process_parallel_batch(
@@ -1114,7 +1237,9 @@ motis_one_to_many_read_batch <- function(
           withDistance = withDistance,
           dots = dot_params, 
           .server = .server,
-          progress = progress && (n_dest_chunks == 1) # reduce noise if many chunks
+          progress = progress && (n_dest_chunks == 1), # reduce noise if many chunks
+          api_endpoint = api_endpoint,
+          duration_key = duration_key
         )
       }
       
@@ -1166,7 +1291,9 @@ motis_one_to_many_read_batch <- function(
 .process_batch_mirai <- function(
   origin_indices, one_places, many_places_vec, one_ids, many_ids,
   one_coords, many_coords, max_radius_km,
-  mode, arrive_by, max, maxMatchingDistance, withDistance, dot_params, .server
+  mode, arrive_by, max, maxMatchingDistance, withDistance, dot_params, .server,
+  api_endpoint = "/api/v1/one-to-many",
+  duration_key = "max"
 ) {
   
   # Define worker function
@@ -1198,6 +1325,8 @@ motis_one_to_many_read_batch <- function(
         withDistance <- args$withDistance
         dot_params <- args$dot_params
         .server <- args$.server
+        api_endpoint <- args$api_endpoint
+        duration_key <- args$duration_key
         
         # --- Worker Logic ---
         
@@ -1248,18 +1377,25 @@ motis_one_to_many_read_batch <- function(
         body_params <- list(
           one = unname(one_place),
           many = I(unname(filtered_many_places)),
-          mode = unname(mode),
           arriveBy = unname(arrive_by),
-          max = unname(max),
           maxMatchingDistance = unname(maxMatchingDistance),
-          elevationCosts = dot_params$elevationCosts %||% "NONE",
-          withDistance = withDistance
+          elevationCosts = dot_params$elevationCosts %||% "NONE"
         )
+        
+        # Conditionally include parameters not supported by intermodal API
+        if (api_endpoint == "/api/v1/one-to-many") {
+          body_params$mode <- unname(mode)
+          body_params$withDistance <- withDistance
+        }
+        
+        # Inject duration with correct key
+        body_params[[duration_key]] <- unname(max)
+        
         # Remove consumed parameters from dot_params for the next call
         dot_params$elevationCosts <- NULL
         if (length(dot_params) > 0) body_params <- utils::modifyList(body_params, dot_params)
         
-        url <- paste0(.server, "/api/v1/one-to-many")
+        url <- paste0(.server, api_endpoint)
         
         req <- httr2::request(url) |>
           httr2::req_method("POST") |>
@@ -1351,7 +1487,9 @@ motis_one_to_many_read_batch <- function(
        mode = mode, arrive_by = arrive_by,
        max = max, maxMatchingDistance = maxMatchingDistance,
        withDistance = withDistance,
-       dot_params = dot_params, .server = .server
+       dot_params = dot_params, .server = .server,
+       api_endpoint = api_endpoint,
+       duration_key = duration_key
     )
   )[] # collect
   
@@ -1384,7 +1522,9 @@ motis_one_to_many_read_batch <- function(
   origin_indices, one_places, many_places_vec, one_ids, many_ids,
   one_coords, many_coords, max_radius_km,
   mode, arrive_by, max, maxMatchingDistance,
-  withDistance, dots, .server, progress
+  withDistance, dots, .server, progress,
+  api_endpoint = "/api/v1/one-to-many",
+  duration_key = "max"
 ) {
   requests <- vector("list", length(origin_indices))
   origin_metadata <- vector("list", length(origin_indices))
@@ -1422,16 +1562,25 @@ motis_one_to_many_read_batch <- function(
     # Manual request construction due to motis.client capture bug
     body_params <- list(
       one = origin_place, many = I(filtered_many_places),
-      mode = mode, arriveBy = arrive_by, max = max,
+      arriveBy = arrive_by,
       maxMatchingDistance = maxMatchingDistance,
-      elevationCosts = dots$elevationCosts %||% "NONE",
-      withDistance = withDistance
+      elevationCosts = dots$elevationCosts %||% "NONE"
     )
+    
+    # Conditionally include parameters not supported by intermodal API
+    if (api_endpoint == "/api/v1/one-to-many") {
+      body_params$mode <- mode
+      body_params$withDistance <- withDistance
+    }
+    
+    # Inject duration with correct key
+    body_params[[duration_key]] <- unname(max)
+    
     dots$elevationCosts <- NULL
     if (length(dots) > 0) body_params <- utils::modifyList(body_params, dots)
     
     req <- httr2::request(.server) |>
-      httr2::req_url_path_append("api/v1/one-to-many") |>
+      httr2::req_url_path_append(api_endpoint) |>
       httr2::req_method("POST") |>
       httr2::req_body_json(body_params) |>
       httr2::req_retry(max_tries = getOption("rmotis.retry_max_tries", 3), backoff = getOption("rmotis.retry_backoff", ~ 2)) |>

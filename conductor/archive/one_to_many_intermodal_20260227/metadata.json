@@ -1,0 +1,8 @@
+{
+  "track_id": "one_to_many_intermodal_20260227",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-02-27T15:30:00Z",
+  "updated_at": "2026-02-27T15:30:00Z",
+  "description": "Add support for intermodal (public transit) one-to-many routing with API and batch engines."
+}

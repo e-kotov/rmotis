@@ -9,7 +9,7 @@ The goal of rmotis is to provide a seamless, R-idiomatic interface to the Modula
 
 ## Core Features
 - **Automated Server Management:** Tools for downloading, installing, configuring, and managing the lifecycle (start/stop/status) of the MOTIS server without requiring manual system administration.
-- **High-Level Routing API:** User-friendly R wrappers for complex MOTIS queries, including one-to-one, one-to-many, and one-to-all routing. Supports massive datasets via unified API and CLI engines with smart chunking and spatial optimization.
+- **High-Level Routing API:** User-friendly R wrappers for complex MOTIS queries, including one-to-one, one-to-many, and one-to-all routing. Supports both street-level and **intermodal (public transit)** modes. Handles massive datasets via unified API and CLI engines with smart chunking and spatial optimization.
 - **Spatial Integration:** First-class support for the {sf} package and visualization tools like {mapgl}, ensuring easy integration with the broader R spatial ecosystem.
 - **Interactive Exploration (GUI):** A Shiny-based interface for visualizing routing results, exploring the transport network, and debugging data or configuration issues.
 

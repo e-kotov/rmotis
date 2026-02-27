@@ -83,6 +83,29 @@ test_that(".extract_coords handles character lat;lon strings", {
   expect_equal(coords[, "lon"], c(18.0, 18.1))
 })
 
+test_that(".extract_coords handles character coordinates with various separators", {
+  # Standard semicolon
+  places_semicolon <- c("59.3;18.0", "59.4;18.1")
+  coords_semicolon <- rmotis:::.extract_coords(places_semicolon)
+  expect_equal(coords_semicolon[, "lat"], c(59.3, 59.4))
+  expect_equal(coords_semicolon[, "lon"], c(18.0, 18.1))
+  
+  # Comma (Google Maps style)
+  places_comma <- c("49.5,6.1", "49.6,6.2")
+  # This should not trigger warnings
+  expect_no_warning({
+    coords_comma <- rmotis:::.extract_coords(places_comma)
+  })
+  expect_equal(coords_comma[, "lat"], c(49.5, 49.6))
+  expect_equal(coords_comma[, "lon"], c(6.1, 6.2))
+  
+  # Mixed separators
+  places_mixed <- c("59.3,18.0", "59.4;18.1")
+  coords_mixed <- rmotis:::.extract_coords(places_mixed)
+  expect_equal(coords_mixed[, "lat"], c(59.3, 59.4))
+  expect_equal(coords_mixed[, "lon"], c(18.0, 18.1))
+})
+
 test_that(".extract_coords errors on unsupported input type", {
   expect_error(
     rmotis:::.extract_coords(list(a = 1, b = 2)),
