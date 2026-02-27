@@ -649,9 +649,11 @@ debug_msg <- function(...) {
     }
   }
   
-  # character: parse "lat;lon" strings
+  # character: parse "lat;lon" or "lat,lon" strings
   if (is.character(place)) {
-    parts <- strsplit(place, ";", fixed = TRUE)
+    # Replace comma with semicolon for uniform splitting
+    place_norm <- gsub(",", ";", place, fixed = TRUE)
+    parts <- strsplit(place_norm, ";", fixed = TRUE)
     lats <- vapply(parts, function(p) as.numeric(p[1]), numeric(1))
     lons <- vapply(parts, function(p) as.numeric(p[2]), numeric(1))
     return(cbind(lat = lats, lon = lons))

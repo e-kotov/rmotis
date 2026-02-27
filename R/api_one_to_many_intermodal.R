@@ -21,7 +21,7 @@
 #' @param maxMatchingDistance maximum matching distance in meters to match geo
 #'   coordinates to the street network
 #' @param withDistance Logical. Include distance in the output? 
-#'   Defaults to `FALSE`.
+#'   Defaults to `FALSE`. **Note:** Currently ignored by the intermodal API.
 #' @param ... Additional MOTIS API parameters.
 #' @param engine Execution engine:
 #'   - `"api"` (default): Uses the MOTIS POST API. Supports parallel backends.
@@ -47,7 +47,7 @@
 #'   `"\r\n"` for CRLF).
 #' @param motis_path Path to the directory containing the MOTIS binary, or
 #'   `NULL` to use the system PATH.
-#' @inheritDotParams motis.client::mc_oneToManyIntermodalPost -one -many -time -arriveBy -maxTravelTime -maxMatchingDistance -withDistance -.endpoint
+#' @inheritDotParams motis.client::mc_oneToManyIntermodalPost -one -many -time -arriveBy -maxTravelTime -maxMatchingDistance -.endpoint
 #'
 #' @return Depending on the `output` parameter and `output_path`, a `data.frame`, 
 #'   a list, or the `output_path` invisibly.

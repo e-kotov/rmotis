@@ -142,7 +142,7 @@ Legs that do not require a transfer (stay-seated transfer) are marked with \code
 Allowed modes for the transit part. If empty, no transit connections will be computed.
 For example, this can be used to allow only \verb{SUBURBAN,SUBWAY,TRAM}.
 
-Allowed values: WALK, BIKE, RENTAL, CAR, CAR_PARKING, CAR_DROPOFF, ODM, RIDE_SHARING, FLEX, TRANSIT, TRAM, SUBWAY, FERRY, AIRPLANE, BUS, COACH, RAIL, HIGHSPEED_RAIL, LONG_DISTANCE, NIGHT_RAIL, REGIONAL_FAST_RAIL, REGIONAL_RAIL, SUBURBAN, FUNICULAR, AERIAL_LIFT, OTHER, AREAL_LIFT, METRO, CABLE_CAR.}
+Allowed values: WALK, BIKE, RENTAL, CAR, CAR_PARKING, CAR_DROPOFF, ODM, RIDE_SHARING, FLEX, DEBUG_BUS_ROUTE, DEBUG_RAILWAY_ROUTE, DEBUG_FERRY_ROUTE, TRANSIT, TRAM, SUBWAY, FERRY, AIRPLANE, BUS, COACH, RAIL, HIGHSPEED_RAIL, LONG_DISTANCE, NIGHT_RAIL, REGIONAL_FAST_RAIL, REGIONAL_RAIL, SUBURBAN, FUNICULAR, AERIAL_LIFT, OTHER, AREAL_LIFT, METRO, CABLE_CAR.}
     \item{\code{directModes}}{Optional. Default is \code{WALK} which will compute walking routes as direct connections.
 
 Modes used for direction connections from start to destination without using transit.
@@ -158,17 +158,17 @@ Note: the output \code{direct} array will stay empty if the input param \code{ma
 
 Only non-transit modes such as \code{WALK}, \code{BIKE}, \code{CAR}, \code{BIKE_SHARING}, etc. can be used.
 
-Allowed values: WALK, BIKE, RENTAL, CAR, CAR_PARKING, CAR_DROPOFF, ODM, RIDE_SHARING, FLEX, TRANSIT, TRAM, SUBWAY, FERRY, AIRPLANE, BUS, COACH, RAIL, HIGHSPEED_RAIL, LONG_DISTANCE, NIGHT_RAIL, REGIONAL_FAST_RAIL, REGIONAL_RAIL, SUBURBAN, FUNICULAR, AERIAL_LIFT, OTHER, AREAL_LIFT, METRO, CABLE_CAR.}
+Allowed values: WALK, BIKE, RENTAL, CAR, CAR_PARKING, CAR_DROPOFF, ODM, RIDE_SHARING, FLEX, DEBUG_BUS_ROUTE, DEBUG_RAILWAY_ROUTE, DEBUG_FERRY_ROUTE, TRANSIT, TRAM, SUBWAY, FERRY, AIRPLANE, BUS, COACH, RAIL, HIGHSPEED_RAIL, LONG_DISTANCE, NIGHT_RAIL, REGIONAL_FAST_RAIL, REGIONAL_RAIL, SUBURBAN, FUNICULAR, AERIAL_LIFT, OTHER, AREAL_LIFT, METRO, CABLE_CAR.}
     \item{\code{preTransitModes}}{Optional. Default is \code{WALK}. Only applies if the \code{from} place is a coordinate (not a transit stop). Does not apply to direct connections (see \code{directModes}).
 
 A list of modes that are allowed to be used from the \code{from} coordinate to the first transit stop. Example: \verb{WALK,BIKE_SHARING}.
 
-Allowed values: WALK, BIKE, RENTAL, CAR, CAR_PARKING, CAR_DROPOFF, ODM, RIDE_SHARING, FLEX, TRANSIT, TRAM, SUBWAY, FERRY, AIRPLANE, BUS, COACH, RAIL, HIGHSPEED_RAIL, LONG_DISTANCE, NIGHT_RAIL, REGIONAL_FAST_RAIL, REGIONAL_RAIL, SUBURBAN, FUNICULAR, AERIAL_LIFT, OTHER, AREAL_LIFT, METRO, CABLE_CAR.}
+Allowed values: WALK, BIKE, RENTAL, CAR, CAR_PARKING, CAR_DROPOFF, ODM, RIDE_SHARING, FLEX, DEBUG_BUS_ROUTE, DEBUG_RAILWAY_ROUTE, DEBUG_FERRY_ROUTE, TRANSIT, TRAM, SUBWAY, FERRY, AIRPLANE, BUS, COACH, RAIL, HIGHSPEED_RAIL, LONG_DISTANCE, NIGHT_RAIL, REGIONAL_FAST_RAIL, REGIONAL_RAIL, SUBURBAN, FUNICULAR, AERIAL_LIFT, OTHER, AREAL_LIFT, METRO, CABLE_CAR.}
     \item{\code{postTransitModes}}{Optional. Default is \code{WALK}. Only applies if the \code{to} place is a coordinate (not a transit stop). Does not apply to direct connections (see \code{directModes}).
 
 A list of modes that are allowed to be used from the last transit stop to the \code{to} coordinate. Example: \verb{WALK,BIKE_SHARING}.
 
-Allowed values: WALK, BIKE, RENTAL, CAR, CAR_PARKING, CAR_DROPOFF, ODM, RIDE_SHARING, FLEX, TRANSIT, TRAM, SUBWAY, FERRY, AIRPLANE, BUS, COACH, RAIL, HIGHSPEED_RAIL, LONG_DISTANCE, NIGHT_RAIL, REGIONAL_FAST_RAIL, REGIONAL_RAIL, SUBURBAN, FUNICULAR, AERIAL_LIFT, OTHER, AREAL_LIFT, METRO, CABLE_CAR.}
+Allowed values: WALK, BIKE, RENTAL, CAR, CAR_PARKING, CAR_DROPOFF, ODM, RIDE_SHARING, FLEX, DEBUG_BUS_ROUTE, DEBUG_RAILWAY_ROUTE, DEBUG_FERRY_ROUTE, TRANSIT, TRAM, SUBWAY, FERRY, AIRPLANE, BUS, COACH, RAIL, HIGHSPEED_RAIL, LONG_DISTANCE, NIGHT_RAIL, REGIONAL_FAST_RAIL, REGIONAL_RAIL, SUBURBAN, FUNICULAR, AERIAL_LIFT, OTHER, AREAL_LIFT, METRO, CABLE_CAR.}
     \item{\code{directRentalFormFactors}}{Experimental. Expect unannounced breaking changes (without version bumps).
 
 Optional. Only applies to direct connections.

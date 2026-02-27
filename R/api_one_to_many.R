@@ -163,6 +163,11 @@ motis_one_to_many <- function(
   
   if (engine == "batch") {
     if (is.null(data_dir)) stop("'data_dir' is required for engine='batch'", call. = FALSE)
+    
+    # Remove these from dots as they are passed explicitly
+    dots$api_endpoint <- NULL
+    dots$duration_key <- NULL
+    
     return(.motis_one_to_many_batch_cli(
       one = one, many = many, data_dir = data_dir, mode = mode,
       arrive_by = arrive_by, max = duration_val, maxMatchingDistance = maxMatchingDistance,
@@ -584,6 +589,15 @@ motis_one_to_many_read_batch <- function(
 ) {
   mode <- match.arg(mode)
   data_dir <- normalizePath(data_dir, mustWork = TRUE)
+  
+  # Heuristic: if data_dir contains a 'data' subfolder with config.yml, 
+  # but data_dir itself doesn't have tt.bin, use the subfolder.
+  if (!file.exists(file.path(data_dir, "tt.bin")) && 
+      dir.exists(file.path(data_dir, "data")) && 
+      file.exists(file.path(data_dir, "data", "tt.bin"))) {
+    data_dir <- file.path(data_dir, "data")
+  }
+  
   dots <- .collapse_dots(list(...))
 
   # Resolve MOTIS binary
@@ -651,13 +665,18 @@ motis_one_to_many_read_batch <- function(
     val_args <- list(
       one = one_places[1L],
       many = paste(many_places_vec[dest_chunks[[1]]], collapse = ","),
-      mode = mode,
       arriveBy = arrive_by,
       maxMatchingDistance = maxMatchingDistance,
-      withDistance = withDistance,
       .build_only = TRUE,
       .server = "http://localhost:8080"
     )
+    
+    # Conditionally include parameters not supported by intermodal API
+    if (api_endpoint == "/api/v1/one-to-many") {
+      val_args$mode <- mode
+      val_args$withDistance <- withDistance
+    }
+    
     val_args[[duration_key]] <- max
     
     do.call(client_fun, c(val_args, dots))
@@ -821,11 +840,16 @@ motis_one_to_many_read_batch <- function(
   params_list <- list(
     one = one_place,
     many = many_places_str,
-    mode = mode,
     arriveBy = arrive_by,
-    maxMatchingDistance = maxMatchingDistance,
-    withDistance = withDistance
+    maxMatchingDistance = maxMatchingDistance
   )
+  
+  # Conditionally include parameters not supported by intermodal API
+  if (api_endpoint == "/api/v1/one-to-many") {
+    params_list$mode <- mode
+    params_list$withDistance <- withDistance
+  }
+  
   # Inject duration with correct key
   params_list[[duration_key]] <- max
   
@@ -957,12 +981,17 @@ motis_one_to_many_read_batch <- function(
   body_params <- list(
     one = unname(one_place),
     many = I(unname(many_places_vec)),
-    mode = unname(mode),
     arriveBy = unname(arrive_by),
     maxMatchingDistance = unname(maxMatchingDistance),
-    elevationCosts = dots$elevationCosts %||% "NONE",
-    withDistance = withDistance
+    elevationCosts = dots$elevationCosts %||% "NONE"
   )
+  
+  # Conditionally include parameters not supported by intermodal API
+  if (api_endpoint == "/api/v1/one-to-many") {
+    body_params$mode <- unname(mode)
+    body_params$withDistance <- withDistance
+  }
+  
   # Inject duration with correct key
   body_params[[duration_key]] <- unname(max)
   
@@ -1348,12 +1377,17 @@ motis_one_to_many_read_batch <- function(
         body_params <- list(
           one = unname(one_place),
           many = I(unname(filtered_many_places)),
-          mode = unname(mode),
           arriveBy = unname(arrive_by),
           maxMatchingDistance = unname(maxMatchingDistance),
-          elevationCosts = dot_params$elevationCosts %||% "NONE",
-          withDistance = withDistance
+          elevationCosts = dot_params$elevationCosts %||% "NONE"
         )
+        
+        # Conditionally include parameters not supported by intermodal API
+        if (api_endpoint == "/api/v1/one-to-many") {
+          body_params$mode <- unname(mode)
+          body_params$withDistance <- withDistance
+        }
+        
         # Inject duration with correct key
         body_params[[duration_key]] <- unname(max)
         
@@ -1528,11 +1562,17 @@ motis_one_to_many_read_batch <- function(
     # Manual request construction due to motis.client capture bug
     body_params <- list(
       one = origin_place, many = I(filtered_many_places),
-      mode = mode, arriveBy = arrive_by,
+      arriveBy = arrive_by,
       maxMatchingDistance = maxMatchingDistance,
-      elevationCosts = dots$elevationCosts %||% "NONE",
-      withDistance = withDistance
+      elevationCosts = dots$elevationCosts %||% "NONE"
     )
+    
+    # Conditionally include parameters not supported by intermodal API
+    if (api_endpoint == "/api/v1/one-to-many") {
+      body_params$mode <- mode
+      body_params$withDistance <- withDistance
+    }
+    
     # Inject duration with correct key
     body_params[[duration_key]] <- unname(max)
     

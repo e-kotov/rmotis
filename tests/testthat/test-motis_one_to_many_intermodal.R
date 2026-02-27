@@ -36,7 +36,6 @@ test_that("motis_one_to_many_intermodal works with mocked POST request", {
     body_data <- req$body$data
     expect_equal(body_data$maxTravelTime, 60)
     expect_equal(body_data$one, "49.599984;6.134208")
-    expect_equal(body_data$mode, "TRANSIT")
     
     mock_resp
   }
