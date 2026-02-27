@@ -206,7 +206,7 @@ Legs that do not require a transfer (stay-seated transfer) are marked with <code
 <dd><p>Optional. Default is <code>TRANSIT</code> which allows all transit modes (no restriction).
 Allowed modes for the transit part. If empty, no transit connections will be computed.
 For example, this can be used to allow only <code>SUBURBAN,SUBWAY,TRAM</code>.</p>
-<p>Allowed values: WALK, BIKE, RENTAL, CAR, CAR_PARKING, CAR_DROPOFF, ODM, RIDE_SHARING, FLEX, TRANSIT, TRAM, SUBWAY, FERRY, AIRPLANE, BUS, COACH, RAIL, HIGHSPEED_RAIL, LONG_DISTANCE, NIGHT_RAIL, REGIONAL_FAST_RAIL, REGIONAL_RAIL, SUBURBAN, FUNICULAR, AERIAL_LIFT, OTHER, AREAL_LIFT, METRO, CABLE_CAR.</p></dd>
+<p>Allowed values: WALK, BIKE, RENTAL, CAR, CAR_PARKING, CAR_DROPOFF, ODM, RIDE_SHARING, FLEX, DEBUG_BUS_ROUTE, DEBUG_RAILWAY_ROUTE, DEBUG_FERRY_ROUTE, TRANSIT, TRAM, SUBWAY, FERRY, AIRPLANE, BUS, COACH, RAIL, HIGHSPEED_RAIL, LONG_DISTANCE, NIGHT_RAIL, REGIONAL_FAST_RAIL, REGIONAL_RAIL, SUBURBAN, FUNICULAR, AERIAL_LIFT, OTHER, AREAL_LIFT, METRO, CABLE_CAR.</p></dd>
 
     <dt><code>directModes</code></dt>
 <dd><p>Optional. Default is <code>WALK</code> which will compute walking routes as direct connections.</p>
@@ -218,17 +218,17 @@ This is being used as a cut-off during transit routing to speed up the search.
 To prevent this, it's possible to send two separate requests (one with only <code>transitModes</code> and one with only <code>directModes</code>).</p>
 <p>Note: the output <code>direct</code> array will stay empty if the input param <code>maxDirectTime</code> makes any direct trip impossible.</p>
 <p>Only non-transit modes such as <code>WALK</code>, <code>BIKE</code>, <code>CAR</code>, <code>BIKE_SHARING</code>, etc. can be used.</p>
-<p>Allowed values: WALK, BIKE, RENTAL, CAR, CAR_PARKING, CAR_DROPOFF, ODM, RIDE_SHARING, FLEX, TRANSIT, TRAM, SUBWAY, FERRY, AIRPLANE, BUS, COACH, RAIL, HIGHSPEED_RAIL, LONG_DISTANCE, NIGHT_RAIL, REGIONAL_FAST_RAIL, REGIONAL_RAIL, SUBURBAN, FUNICULAR, AERIAL_LIFT, OTHER, AREAL_LIFT, METRO, CABLE_CAR.</p></dd>
+<p>Allowed values: WALK, BIKE, RENTAL, CAR, CAR_PARKING, CAR_DROPOFF, ODM, RIDE_SHARING, FLEX, DEBUG_BUS_ROUTE, DEBUG_RAILWAY_ROUTE, DEBUG_FERRY_ROUTE, TRANSIT, TRAM, SUBWAY, FERRY, AIRPLANE, BUS, COACH, RAIL, HIGHSPEED_RAIL, LONG_DISTANCE, NIGHT_RAIL, REGIONAL_FAST_RAIL, REGIONAL_RAIL, SUBURBAN, FUNICULAR, AERIAL_LIFT, OTHER, AREAL_LIFT, METRO, CABLE_CAR.</p></dd>
 
     <dt><code>preTransitModes</code></dt>
 <dd><p>Optional. Default is <code>WALK</code>. Only applies if the <code>from</code> place is a coordinate (not a transit stop). Does not apply to direct connections (see <code>directModes</code>).</p>
 <p>A list of modes that are allowed to be used from the <code>from</code> coordinate to the first transit stop. Example: <code>WALK,BIKE_SHARING</code>.</p>
-<p>Allowed values: WALK, BIKE, RENTAL, CAR, CAR_PARKING, CAR_DROPOFF, ODM, RIDE_SHARING, FLEX, TRANSIT, TRAM, SUBWAY, FERRY, AIRPLANE, BUS, COACH, RAIL, HIGHSPEED_RAIL, LONG_DISTANCE, NIGHT_RAIL, REGIONAL_FAST_RAIL, REGIONAL_RAIL, SUBURBAN, FUNICULAR, AERIAL_LIFT, OTHER, AREAL_LIFT, METRO, CABLE_CAR.</p></dd>
+<p>Allowed values: WALK, BIKE, RENTAL, CAR, CAR_PARKING, CAR_DROPOFF, ODM, RIDE_SHARING, FLEX, DEBUG_BUS_ROUTE, DEBUG_RAILWAY_ROUTE, DEBUG_FERRY_ROUTE, TRANSIT, TRAM, SUBWAY, FERRY, AIRPLANE, BUS, COACH, RAIL, HIGHSPEED_RAIL, LONG_DISTANCE, NIGHT_RAIL, REGIONAL_FAST_RAIL, REGIONAL_RAIL, SUBURBAN, FUNICULAR, AERIAL_LIFT, OTHER, AREAL_LIFT, METRO, CABLE_CAR.</p></dd>
 
     <dt><code>postTransitModes</code></dt>
 <dd><p>Optional. Default is <code>WALK</code>. Only applies if the <code>to</code> place is a coordinate (not a transit stop). Does not apply to direct connections (see <code>directModes</code>).</p>
 <p>A list of modes that are allowed to be used from the last transit stop to the <code>to</code> coordinate. Example: <code>WALK,BIKE_SHARING</code>.</p>
-<p>Allowed values: WALK, BIKE, RENTAL, CAR, CAR_PARKING, CAR_DROPOFF, ODM, RIDE_SHARING, FLEX, TRANSIT, TRAM, SUBWAY, FERRY, AIRPLANE, BUS, COACH, RAIL, HIGHSPEED_RAIL, LONG_DISTANCE, NIGHT_RAIL, REGIONAL_FAST_RAIL, REGIONAL_RAIL, SUBURBAN, FUNICULAR, AERIAL_LIFT, OTHER, AREAL_LIFT, METRO, CABLE_CAR.</p></dd>
+<p>Allowed values: WALK, BIKE, RENTAL, CAR, CAR_PARKING, CAR_DROPOFF, ODM, RIDE_SHARING, FLEX, DEBUG_BUS_ROUTE, DEBUG_RAILWAY_ROUTE, DEBUG_FERRY_ROUTE, TRANSIT, TRAM, SUBWAY, FERRY, AIRPLANE, BUS, COACH, RAIL, HIGHSPEED_RAIL, LONG_DISTANCE, NIGHT_RAIL, REGIONAL_FAST_RAIL, REGIONAL_RAIL, SUBURBAN, FUNICULAR, AERIAL_LIFT, OTHER, AREAL_LIFT, METRO, CABLE_CAR.</p></dd>
 
     <dt><code>directRentalFormFactors</code></dt>
 <dd><p>Experimental. Expect unannounced breaking changes (without version bumps).</p>
