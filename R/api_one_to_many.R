@@ -145,7 +145,8 @@ motis_one_to_many <- function(
   eol = NULL,
   motis_path = NULL,
   api_endpoint = "/api/v1/one-to-many",
-  duration_key = "max"
+  duration_key = "max",
+  client_fun = motis.client::mc_oneToMany
 ) {
   # --- 1. Argument and Input Validation ---
   engine <- if (is.character(engine)) match.arg(engine) else engine
@@ -168,7 +169,9 @@ motis_one_to_many <- function(
       temp_dir = temp_dir, keep_files = keep_files, progress = progress,
       batch_size = batch_size, max_destinations_per_batch = max_destinations_per_batch,
       output_path = output_path, eol = eol, motis_path = motis_path,
-      api_endpoint = api_endpoint
+      api_endpoint = api_endpoint,
+      duration_key = duration_key,
+      client_fun = client_fun
     ))
   }
 
@@ -190,7 +193,8 @@ motis_one_to_many <- function(
       withDistance = withDistance,
       output = output,
       ...,
-      api_endpoint = api_endpoint
+      api_endpoint = api_endpoint,
+      duration_key = duration_key
     ))
   } else {
     if (output == "raw_list") {
@@ -216,7 +220,8 @@ motis_one_to_many <- function(
       checkpoint_file = checkpoint_file,
       progress = progress,
       parallel = parallel,
-      api_endpoint = api_endpoint
+      api_endpoint = api_endpoint,
+      duration_key = duration_key
     ))
   }
 }
@@ -549,7 +554,7 @@ motis_one_to_many_read_batch <- function(
   one,
   many,
   data_dir,
-  mode = c("WALK", "BIKE", "CAR"),
+  mode = c("WALK", "BIKE", "CAR", "TRANSIT"),
   arrive_by = FALSE,
   max = 7200,
   maxMatchingDistance = 1000,
@@ -571,7 +576,8 @@ motis_one_to_many_read_batch <- function(
   output_path = NULL,
   eol = NULL,
   api_endpoint = "/api/v1/one-to-many",
-  duration_key = "max"
+  duration_key = "max",
+  client_fun = motis.client::mc_oneToMany
 ) {
   mode <- match.arg(mode)
   data_dir <- normalizePath(data_dir, mustWork = TRUE)
@@ -617,7 +623,7 @@ motis_one_to_many_read_batch <- function(
   if (spatial_filter) {
     many_coords <- .extract_coords(many)
     # Speed estimates (km/h)
-    max_speed <- switch(mode, WALK = 6, BIKE = 20, CAR = 130)
+    max_speed <- switch(mode, WALK = 6, BIKE = 20, CAR = 130, TRANSIT = 100)
     # Max travel distance in km with 20% buffer
     max_radius_km <- (max * max_speed / 3600) * 1.2
   }
@@ -636,20 +642,20 @@ motis_one_to_many_read_batch <- function(
   # Validate with first origin (dry-run)
   tryCatch({
     .validate_batch_params(dots)
-    do.call(motis.client::mc_oneToMany, c(
-      list(
-        one = one_places[1L],
-        many = paste(many_places_vec[dest_chunks[[1]]], collapse = ","),
-        mode = mode,
-        arriveBy = arrive_by,
-        max = max,
-        maxMatchingDistance = maxMatchingDistance,
-        withDistance = withDistance,
-        .build_only = TRUE,
-        .server = "http://localhost:8080"
-      ),
-      dots
-    ))
+    # Correctly map duration for validation
+    val_args <- list(
+      one = one_places[1L],
+      many = paste(many_places_vec[dest_chunks[[1]]], collapse = ","),
+      mode = mode,
+      arriveBy = arrive_by,
+      maxMatchingDistance = maxMatchingDistance,
+      withDistance = withDistance,
+      .build_only = TRUE,
+      .server = "http://localhost:8080"
+    )
+    val_args[[duration_key]] <- max
+    
+    do.call(client_fun, c(val_args, dots))
   }, error = function(e) {
     stop("Invalid MOTIS API parameters: ", e$message, call. = FALSE)
   })
@@ -1099,7 +1105,7 @@ motis_one_to_many_read_batch <- function(
     dots[["max_speed_kmh"]] <- NULL
     
     if (is.null(max_speed_kmh)) {
-      max_speed <- switch(mode, WALK = 6, BIKE = 20, CAR = 130)
+      max_speed <- switch(mode, WALK = 6, BIKE = 20, CAR = 130, TRANSIT = 100)
     } else {
       max_speed <- max_speed_kmh
     }
