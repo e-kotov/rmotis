@@ -9,5 +9,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: Add support for intermodal (public transit) one-to-many routing**
+- [x] **Track: Add support for intermodal (public transit) one-to-many routing**
 *Link: [./tracks/one_to_many_intermodal_20260227/](./tracks/one_to_many_intermodal_20260227/)*
