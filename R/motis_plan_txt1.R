@@ -108,6 +108,7 @@
 #' @param to_id_col Name of the ID column in `to`. Defaults to `"id"`.
 #' @param output The mode of operation: `"itineraries"` for paired journeys or
 #'   `"travel_time_matrix_long"` for a full matrix.
+#' @param quiet Logical. If `TRUE`, suppress status messages.
 #' @param ... Additional parameters to be passed to the MOTIS Plan API,
 #'   (e.g., `maxTransfers`, `transitModes`).
 #' @return Invisibly returns a character vector of the generated request strings.

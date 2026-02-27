@@ -28,6 +28,8 @@ will be written.}
 
 \item{max_travel_time}{Integer. The maximum travel time in minutes. Defaults to 120.}
 
+\item{quiet}{Logical. If \code{TRUE}, suppress status messages.}
+
 \item{...}{Additional parameters to be passed to the MOTIS One-to-All API,
 (e.g., \code{maxTransfers}, \code{transitModes}).}
 }

@@ -169,6 +169,9 @@ motis_one_to_many <- function(
 #' @param spatial_filter Logical. Pre-filter destinations per origin.
 #' @param spatial_sort Logical. Sort origins spatially.
 #' @param split Integer. Mapped to `max_destinations_per_batch` if > 1.
+#' @param chunk_size Number of lines to read and process at a time. Defaults to `10000L`.
+#' @param output_callback Optional function that receives each processed chunk
+#'   (a data.frame) as its argument.
 #'
 #' @return A data.frame or `output_path` invisibly.
 #' @export
@@ -240,6 +243,7 @@ motis_one_to_many_batch <- function(
 #' @param ... Additional MOTIS API parameters.
 #' @param append Logical. If `TRUE`, appends to `output_file` and its
 #'   `.meta` sidecar.
+#' @param quiet Logical. If `TRUE`, suppress status messages.
 #' @param api_endpoint The API path. Defaults to `"/api/v1/one-to-many"`.
 #'
 #' @return Invisibly returns the number of queries written (always 1).
@@ -545,8 +549,6 @@ motis_one_to_many_read_batch <- function(
     max_speed <- switch(mode, WALK = 6, BIKE = 20, CAR = 130)
     # Max travel distance in km with 20% buffer
     max_radius_km <- (max * max_speed / 3600) * 1.2
-    # Convert to degrees (rough approximation: 1 degree ≈ 111 km)
-    max_radius_deg <- max_radius_km / 111.0
   }
   
   # Smart Chunking Dispatch for CLI
@@ -598,10 +600,13 @@ motis_one_to_many_read_batch <- function(
       origin_lat <- one_coords[i, "lat"]
       origin_lon <- one_coords[i, "lon"]
       
+      # Professional degree conversion
+      radii <- .km_to_deg(max_radius_km, origin_lat)
+      
       # Bounding box filter
       lat_diff <- abs(many_coords[, "lat"] - origin_lat)
       lon_diff <- abs(many_coords[, "lon"] - origin_lon)
-      keep_idx <- which(lat_diff <= max_radius_deg & lon_diff <= max_radius_deg)
+      keep_idx <- which(lat_diff <= radii$lat & lon_diff <= radii$lon)
       
       if (length(keep_idx) == 0) next
       
@@ -1020,7 +1025,6 @@ motis_one_to_many_read_batch <- function(
       max_speed <- max_speed_kmh
     }
     max_radius_km <- (max * max_speed / 3600) * 1.2
-    max_radius_deg <- max_radius_km / 111.0
     
     if (progress) message(sprintf("v Spatial filter enabled (radius: %.2f km)", max_radius_km))
   }
@@ -1087,7 +1091,7 @@ motis_one_to_many_read_batch <- function(
           many_ids = many_ids[idx_d],
           one_coords = one_coords,
           many_coords = if(!is.null(many_coords)) many_coords[idx_d, , drop=FALSE] else NULL,
-          max_radius_deg = max_radius_deg,
+          max_radius_km = max_radius_km,
           mode = mode, arrive_by = arrive_by,
           max = max, maxMatchingDistance = maxMatchingDistance,
           withDistance = withDistance,
@@ -1103,7 +1107,7 @@ motis_one_to_many_read_batch <- function(
           many_ids = many_ids[idx_d],
           one_coords = one_coords,
           many_coords = if(!is.null(many_coords)) many_coords[idx_d, , drop=FALSE] else NULL,
-          max_radius_deg = max_radius_deg,
+          max_radius_km = max_radius_km,
           mode = mode, arrive_by = arrive_by,
           max = max, maxMatchingDistance = maxMatchingDistance,
           withDistance = withDistance,
@@ -1160,7 +1164,7 @@ motis_one_to_many_read_batch <- function(
 #' @noRd
 .process_batch_mirai <- function(
   origin_indices, one_places, many_places_vec, one_ids, many_ids,
-  one_coords, many_coords, max_radius_deg,
+  one_coords, many_coords, max_radius_km,
   mode, arrive_by, max, maxMatchingDistance, withDistance, dot_params, .server
 ) {
   
@@ -1185,7 +1189,7 @@ motis_one_to_many_read_batch <- function(
         many_places_vec <- args$many_places_vec
         many_ids <- args$many_ids
         many_coords <- args$many_coords
-        max_radius_deg <- args$max_radius_deg
+        max_radius_km <- args$max_radius_km
         mode <- args$mode
         arrive_by <- args$arrive_by
         max <- args$max
@@ -1201,16 +1205,19 @@ motis_one_to_many_read_batch <- function(
         filtered_many_places <- many_places_vec
         filtered_many_ids <- many_ids
         
-        if (!is.null(many_coords) && !is.null(max_radius_deg)) {
+        if (!is.null(many_coords) && !is.null(max_radius_km)) {
            # Calculate distance approximation
            # one_place "lat;lon" -> parse
            parts <- as.numeric(strsplit(one_place, ";")[[1]])
            origin_lat <- parts[1]
            origin_lon <- parts[2]
            
+           # Professional degree conversion
+           radii <- rmotis:::.km_to_deg(max_radius_km, origin_lat)
+           
            lat_diff <- abs(many_coords[, "lat"] - origin_lat)
            lon_diff <- abs(many_coords[, "lon"] - origin_lon)
-           keep_idx <- which(lat_diff <= max_radius_deg & lon_diff <= max_radius_deg)
+           keep_idx <- which(lat_diff <= radii$lat & lon_diff <= radii$lon)
            
            if (length(keep_idx) == 0) {
               # Return empty result
@@ -1329,7 +1336,7 @@ motis_one_to_many_read_batch <- function(
        many_places_vec = many_places_vec,
        many_ids = many_ids,
        many_coords = many_coords,
-       max_radius_deg = max_radius_deg,
+       max_radius_km = max_radius_km,
        mode = mode, arrive_by = arrive_by,
        max = max, maxMatchingDistance = maxMatchingDistance,
        withDistance = withDistance,
@@ -1364,7 +1371,7 @@ motis_one_to_many_read_batch <- function(
 #' @noRd
 .process_parallel_batch <- function(
   origin_indices, one_places, many_places_vec, one_ids, many_ids,
-  one_coords, many_coords, max_radius_deg,
+  one_coords, many_coords, max_radius_km,
   mode, arrive_by, max, maxMatchingDistance,
   withDistance, dots, .server, progress
 ) {
@@ -1376,12 +1383,16 @@ motis_one_to_many_read_batch <- function(
     origin_id <- one_ids[idx]
     origin_place <- one_places[idx]
     
-    if (!is.null(many_coords) && !is.null(max_radius_deg)) {
+    if (!is.null(many_coords) && !is.null(max_radius_km)) {
       origin_lat <- one_coords[idx, "lat"]
       origin_lon <- one_coords[idx, "lon"]
+      
+      # Professional degree conversion
+      radii <- .km_to_deg(max_radius_km, origin_lat)
+      
       lat_diff <- abs(many_coords[, "lat"] - origin_lat)
       lon_diff <- abs(many_coords[, "lon"] - origin_lon)
-      keep_idx <- which(lat_diff <= max_radius_deg & lon_diff <= max_radius_deg)
+      keep_idx <- which(lat_diff <= radii$lat & lon_diff <= radii$lon)
       
       if (length(keep_idx) == 0) {
         origin_metadata[[i]] <- list(origin_id = origin_id, dest_ids = character(0), request_idx = NA_integer_)

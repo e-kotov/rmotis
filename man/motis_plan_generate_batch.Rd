@@ -52,6 +52,8 @@ comma-separated strings. Parameters are validated against
 overwriting. Defaults to \code{FALSE}.}
 
 \item{api_endpoint}{The API path. Defaults to \code{"/api/v1/plan"}.}
+
+\item{quiet}{Logical. If \code{TRUE}, suppress status messages.}
 }
 \value{
 Invisibly returns the number of queries written to the file.

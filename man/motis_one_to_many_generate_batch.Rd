@@ -55,6 +55,8 @@ destination identifiers in the metadata file. Defaults to \code{"id"}.}
 \code{.meta} sidecar.}
 
 \item{api_endpoint}{The API path. Defaults to \code{"/api/v1/one-to-many"}.}
+
+\item{quiet}{Logical. If \code{TRUE}, suppress status messages.}
 }
 \value{
 Invisibly returns the number of queries written (always 1).

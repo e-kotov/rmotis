@@ -802,3 +802,26 @@ debug_msg <- function(...) {
     dir = temp_dir
   )
 }
+
+
+#' Internal helper to get bounding box radii in degrees
+#' @param radius_km Radius in kilometers.
+#' @param lat Latitude in decimal degrees.
+#' @return A list with `lat` and `lon` radius in degrees.
+#' @noRd
+.km_to_deg <- function(radius_km, lat) {
+  # Earth's mean radius in km (WGS84 approximately)
+  R <- 6371
+  
+  # Latitude degrees are approximately constant
+  lat_deg <- (radius_km / R) * (180 / pi)
+  
+  # Longitude degrees converge at the poles
+  # Clamp latitude to avoid division by zero
+  lat_rad <- abs(lat) * (pi / 180)
+  if (lat_rad > 1.55) lat_rad <- 1.55 # ~89 degrees
+  
+  lon_deg <- lat_deg / cos(lat_rad)
+  
+  list(lat = lat_deg, lon = lon_deg)
+}

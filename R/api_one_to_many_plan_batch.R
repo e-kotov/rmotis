@@ -93,8 +93,6 @@ motis_one_to_many_plan_batch <- function(
     max_speed <- switch(mode, WALK = 6, BIKE = 20, CAR = 130)
     # Max travel distance in km with 20% buffer
     max_radius_km <- (max * max_speed / 3600) * 1.2
-    # Convert to degrees (rough approximation: 1 degree ≈ 111 km)
-    max_radius_deg <- max_radius_km / 111.0
   }
 
   # Iterate over origins
@@ -104,16 +102,19 @@ motis_one_to_many_plan_batch <- function(
       origin_lat <- one_coords[i, "lat"]
       origin_lon <- one_coords[i, "lon"]
 
+      # Professional degree conversion (lat/lon radii)
+      radii <- .km_to_deg(max_radius_km, origin_lat)
+
       # Bounding box filter
       lat_diff <- abs(many_coords[, "lat"] - origin_lat)
       lon_diff <- abs(many_coords[, "lon"] - origin_lon)
-      keep_idx <- which(lat_diff <= max_radius_deg & lon_diff <= max_radius_deg)
+      keep_idx <- which(lat_diff <= radii$lat & lon_diff <= radii$lon)
 
       # Skip if no destinations in range
       if (length(keep_idx) == 0) {
         if (progress) {
           message(sprintf(
-            "Origin %d/%d (%.2f%%) — 0 destinations (skipped)",
+            "Origin %d/%d (%.2f%%) - 0 destinations (skipped)",
             i,
             n_origins,
             i / n_origins * 100
@@ -137,7 +138,7 @@ motis_one_to_many_plan_batch <- function(
     if (progress) {
       n_dests <- if (spatial_filter) length(keep_idx) else length(many_ids)
       message(sprintf(
-        "Origin %d/%d (%.2f%%) — %s destinations",
+        "Origin %d/%d (%.2f%%) - %s destinations",
         i,
         n_origins,
         i / n_origins * 100,
@@ -181,7 +182,7 @@ motis_one_to_many_plan_batch <- function(
 
   if (progress) {
     message(sprintf(
-      "✓ Generated %s query lines (%s bytes)",
+      "* Generated %s query lines (%s bytes)",
       format(file_info$n_lines, big.mark = ","),
       format(file_info$file_size, big.mark = ",")
     ))

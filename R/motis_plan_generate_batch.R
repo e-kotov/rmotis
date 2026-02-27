@@ -25,6 +25,7 @@
 #'   [motis.client::mc_plan()] before generation begins.
 #' @param append Logical. If `TRUE`, appends to `output_file` instead of
 #'   overwriting. Defaults to `FALSE`.
+#' @param quiet Logical. If `TRUE`, suppress status messages.
 #' @param api_endpoint The API path. Defaults to `"/api/v1/plan"`.
 #'
 #' @return Invisibly returns the number of queries written to the file.

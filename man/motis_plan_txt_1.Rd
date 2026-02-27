@@ -37,6 +37,8 @@ motis_plan_txt_1(
 
 \item{output}{The mode of operation: \code{"itineraries"} for paired journeys or
 \code{"travel_time_matrix_long"} for a full matrix.}
+
+\item{quiet}{Logical. If \code{TRUE}, suppress status messages.}
 }
 \value{
 Invisibly returns a character vector of the generated request strings.

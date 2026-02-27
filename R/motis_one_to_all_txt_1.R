@@ -108,6 +108,7 @@
 #' @param arrive_by Logical. If `FALSE` (the default), calculates routes from
 #'   `one`. If `TRUE`, calculates routes to `one`.
 #' @param max_travel_time Integer. The maximum travel time in minutes. Defaults to 120.
+#' @param quiet Logical. If `TRUE`, suppress status messages.
 #' @param ... Additional parameters to be passed to the MOTIS One-to-All API,
 #'   (e.g., `maxTransfers`, `transitModes`).
 #' @return Invisibly returns a character vector containing the generated request

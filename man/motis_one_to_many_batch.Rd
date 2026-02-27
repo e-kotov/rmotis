@@ -59,6 +59,11 @@ Defaults to \code{FALSE}.}
 \item{motis_path}{Path to the directory containing the MOTIS binary, or
 \code{NULL} to use the system PATH.}
 
+\item{chunk_size}{Number of lines to read and process at a time. Defaults to \code{10000L}.}
+
+\item{output_callback}{Optional function that receives each processed chunk
+(a data.frame) as its argument.}
+
 \item{echo}{Logical. If \code{TRUE} (default), echo MOTIS batch output
 (timing statistics) to the console.}
 
