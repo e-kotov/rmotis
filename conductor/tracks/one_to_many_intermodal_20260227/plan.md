@@ -7,11 +7,11 @@
     - [x] Task: Update existing `motis_one_to_many` to use the new internal infrastructure. d3419e8
 
 ## Phase 2: Implement Intermodal One-to-Many
-- [ ] Task: Create `R/api_one_to_many_intermodal.R`
-    - [ ] Task: Define `motis_one_to_many_intermodal()` with arguments: `one`, `many`, `time`, `arrive_by`, `max_travel_time` (minutes), `transit_modes`, `pre_transit_modes`, `post_transit_modes`, `direct_mode`, `max_transfers`, `min_transfer_time`, etc.
-    - [ ] Task: Implement Roxygen documentation following `motis_plan` style: explicit key args + `@inheritDotParams motis.client::mc_oneToManyIntermodalPost`.
-    - [ ] Task: Wire the function to `.motis_one_to_many_infra`.
-- [ ] Task: Update `R/helpers.R` or `R/api_one_to_many.R` with any missing intermodal-specific helpers.
+- [x] Task: Create `R/api_one_to_many_intermodal.R` 1558d51
+    - [x] Task: Define `motis_one_to_many_intermodal()` with arguments: `one`, `many`, `time`, `arrive_by`, `max_travel_time` (minutes), `transit_modes`, `pre_transit_modes`, `post_transit_modes`, `direct_mode`, `max_transfers`, `min_transfer_time`, etc. 1558d51
+    - [x] Task: Implement Roxygen documentation following `motis_plan` style: explicit key args + `@inheritDotParams motis.client::mc_oneToManyIntermodalPost`. 1558d51
+    - [x] Task: Wire the function to `.motis_one_to_many_infra`. 1558d51
+- [x] Task: Update `R/helpers.R` or `R/api_one_to_many.R` with any missing intermodal-specific helpers. 1558d51
 
 ## Phase 3: Verification & Documentation
 - [ ] Task: Local Testing with Luxembourg Data
