@@ -57,7 +57,7 @@ motis_add_assets <- function(
 
   if (assets_action != "none") {
     message("--- Handling MOTIS assets ---")
-    assets_to_manage <- c("tiles-profiles", "ui")
+    assets_to_manage <- c("tiles-profiles", "ui", "web")
     for (asset in assets_to_manage) {
       src_path <- file.path(motis_install_dir, asset)
       dest_path <- file.path(work_dir, asset)

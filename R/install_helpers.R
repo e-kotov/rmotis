@@ -176,7 +176,7 @@ resolve_motis_cmd <- function(motis_path = NULL) {
         call. = FALSE
       )
     }
-    return("motis") # Return the name to be found on PATH
+    return(normalizePath(unname(cmd)))
   } else {
     # Use the user-provided directory
     exe_name <- if (.Platform$OS.type == "windows") "motis.exe" else "motis"
