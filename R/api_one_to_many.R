@@ -157,7 +157,9 @@ motis_one_to_many <- function(
   one_places <- .format_place_onemany(one, id_col = one_id_col)
   many_places_vec <- .format_place_onemany(many, id_col = many_id_col)
   
-  # --- 2. Dispatch Logic ---
+  # Extract spatial filter from dots if present, default to FALSE for API backward compatibility
+  dots <- list(...)
+  spatial_filter <- if ("spatial_filter" %in% names(dots)) dots$spatial_filter else FALSE
   
   if (engine == "batch") {
     if (is.null(data_dir)) stop("'data_dir' is required for engine='batch'", call. = FALSE)
@@ -178,9 +180,10 @@ motis_one_to_many <- function(
   # API Engine logic
   
   # Simple path = 1 origin AND no parallel requested AND no file streaming AND no checkpointing
-  # AND no destination splitting requested
+  # AND no destination splitting requested AND no spatial filter requested
   is_simple <- !parallel && length(one_places) == 1 && is.null(output_path) && 
-               is.null(checkpoint_file) && is.null(max_destinations_per_batch)
+               is.null(checkpoint_file) && is.null(max_destinations_per_batch) &&
+               !isTRUE(spatial_filter)
   
   if (is_simple) {
     return(.motis_one_to_many_simple(
@@ -213,7 +216,7 @@ motis_one_to_many <- function(
       max = duration_val,
       maxMatchingDistance = maxMatchingDistance,
       withDistance = withDistance,
-      dots = list(...), # Capture dots
+      dots = dots, # Use already captured dots
       backend = backend,
       batch_size = batch_size %||% 16L,
       output_path = output_path,
@@ -625,7 +628,9 @@ motis_one_to_many_read_batch <- function(
     # Speed estimates (km/h)
     max_speed <- switch(mode, WALK = 6, BIKE = 20, CAR = 130, TRANSIT = 100)
     # Max travel distance in km with 20% buffer
-    max_radius_km <- (max * max_speed / 3600) * 1.2
+    # maxTravelTime is in minutes, max is in seconds
+    duration_sec <- if (duration_key == "maxTravelTime") max * 60 else max
+    max_radius_km <- (duration_sec * max_speed / 3600) * 1.2
   }
   
   # Smart Chunking Dispatch for CLI
@@ -1093,7 +1098,7 @@ motis_one_to_many_read_batch <- function(
   }
   
   # Spatial Filter Logic
-  spatial_filter <- dots[["spatial_filter"]] %||% TRUE
+  spatial_filter <- dots[["spatial_filter"]] %||% FALSE
   dots[["spatial_filter"]] <- NULL
   
   many_coords <- NULL
@@ -1109,7 +1114,10 @@ motis_one_to_many_read_batch <- function(
     } else {
       max_speed <- max_speed_kmh
     }
-    max_radius_km <- (max * max_speed / 3600) * 1.2
+    
+    # maxTravelTime is in minutes, max is in seconds
+    duration_sec <- if (duration_key == "maxTravelTime") max * 60 else max
+    max_radius_km <- (duration_sec * max_speed / 3600) * 1.2
     
     if (progress) message(sprintf("v Spatial filter enabled (radius: %.2f km)", max_radius_km))
   }

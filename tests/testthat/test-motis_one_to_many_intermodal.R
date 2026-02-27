@@ -1,3 +1,5 @@
+options(rmotis.wait_for_server = FALSE)
+
 test_that("motis_one_to_many_intermodal function exists", {
   expect_true(exists("motis_one_to_many_intermodal"))
 })
@@ -97,11 +99,6 @@ test_that("motis_one_to_many_intermodal works with batch engine (CLI)", {
   Sys.chmod(dummy_motis, "0755")
   on.exit(unlink(dummy_bin_dir, recursive = TRUE), add = TRUE)
   
-  # Use with_mocked_bindings to bypass mc_oneToMany validation if needed,
-  # but here we rely on the fact that infra should work.
-  # mc_oneToManyIntermodalPost validation might fail if it tries to call real server.
-  # So I will mock motis.client::mc_oneToManyIntermodalPost too.
-  
   mock_intermodal_build <- function(...) {
     list(...) # just return args
   }
@@ -124,5 +121,87 @@ test_that("motis_one_to_many_intermodal works with batch engine (CLI)", {
       expect_equal(res$duration_s, 1200)
     },
     .package = "motis.client"
+  )
+})
+
+test_that("motis_one_to_many_intermodal works in parallel (mocked)", {
+  one <- data.frame(lat = c(49.6, 49.7), lon = c(6.1, 6.2), id = c("O1", "O2"))
+  many <- data.frame(lat = 49.5, lon = 6.0, id = "D1")
+  
+  mock_resp_json <- '[{"duration": 1000}]'
+  mock_resp <- httr2::response(
+    status_code = 200,
+    headers = list(`Content-Type` = "application/json"),
+    body = charToRaw(mock_resp_json)
+  )
+  
+  # httr2::req_perform_parallel returns a list of responses
+  mock_parallel <- function(reqs, ...) {
+    replicate(length(reqs), mock_resp, simplify = FALSE)
+  }
+  
+  testthat::with_mocked_bindings(
+    req_perform_parallel = mock_parallel,
+    code = {
+      res <- motis_one_to_many_intermodal(
+        one, many, 
+        parallel = TRUE,
+        backend = "httr2",
+        batch_size = 1,
+        progress = FALSE,
+        spatial_filter = FALSE,
+        spatial_sort = FALSE,
+        .server = "http://localhost:8080"
+      )
+      
+      expect_equal(nrow(res), 2)
+      expect_equal(res$duration_s, c(1000, 1000))
+    },
+    .package = "httr2"
+  )
+})
+
+test_that("motis_one_to_many_intermodal spatial filter works", {
+  # Origin at Lux Central
+  one <- data.frame(lat = 49.5999, lon = 6.1342, id = "Lux")
+  # Dest 1: Esch (close enough for 100km/h and 60 min)
+  # Dest 2: Paris (far away)
+  many <- data.frame(
+    lat = c(49.4938, 48.8566),
+    lon = c(5.9814, 2.3522),
+    id = c("Esch", "Paris")
+  )
+  
+  mock_resp_json <- '[{"duration": 1200}]'
+  mock_resp <- httr2::response(
+    status_code = 200,
+    body = charToRaw(mock_resp_json)
+  )
+  
+  mock_perform <- function(req, ...) {
+    body_data <- req$body$data
+    # Should only have 1 destination (Esch)
+    expect_length(body_data$many, 1)
+    expect_match(body_data$many[[1]], "49.4938;5.9814")
+    mock_resp
+  }
+  
+  testthat::with_mocked_bindings(
+    req_perform = mock_perform,
+    code = {
+      res <- motis_one_to_many_intermodal(
+        one, many,
+        max_travel_time = 60, # 60 min * 100 km/h = 100 km radius
+        parallel = FALSE,
+        progress = FALSE,
+        spatial_filter = TRUE,
+        spatial_sort = FALSE,
+        .server = "http://localhost:8080"
+      )
+      
+      expect_equal(nrow(res), 1)
+      expect_equal(res$to_id, "Esch")
+    },
+    .package = "httr2"
   )
 })
