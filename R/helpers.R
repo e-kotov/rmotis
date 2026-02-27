@@ -1,5 +1,11 @@
 # R/helpers.R optimized for memory
 
+#' @importFrom rlang %||%
+#' @importFrom DBI dbConnect dbDisconnect dbWriteTable
+#' @importFrom duckdb duckdb
+#' @importFrom lifecycle badge deprecate_warn
+NULL
+
 # minimal internal %||% (no extra deps)
 `%||%` <- function(x, y) if (!is.null(x)) x else y
 

@@ -1200,6 +1200,16 @@ motis_one_to_many_read_batch <- function(
         
         # --- Worker Logic ---
         
+        # Professional degree conversion
+        .km_to_deg <- function(radius_km, lat) {
+          R <- 6371
+          lat_deg <- (radius_km / R) * (180 / pi)
+          lat_rad <- abs(lat) * (pi / 180)
+          if (lat_rad > 1.55) lat_rad <- 1.55 # ~89 degrees
+          lon_deg <- lat_deg / cos(lat_rad)
+          list(lat = lat_deg, lon = lon_deg)
+        }
+        
         # Spatial Filter Logic (Same as before)
         keep_idx <- seq_along(many_places_vec) # Default to keeping all
         filtered_many_places <- many_places_vec
@@ -1213,7 +1223,7 @@ motis_one_to_many_read_batch <- function(
            origin_lon <- parts[2]
            
            # Professional degree conversion
-           radii <- rmotis:::.km_to_deg(max_radius_km, origin_lat)
+           radii <- .km_to_deg(max_radius_km, origin_lat)
            
            lat_diff <- abs(many_coords[, "lat"] - origin_lat)
            lon_diff <- abs(many_coords[, "lon"] - origin_lon)
