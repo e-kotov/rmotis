@@ -39,7 +39,7 @@ motis_stop_server <- function(server = NULL, id = NULL, port = NULL, include_all
       entry <- .motis_state$registry[[target_id]]
       if (!is.null(entry$proc) && entry$proc$is_alive()) entry$proc$kill()
       .motis_deregister(target_id)
-      message("✅ Stopped local server ", target_id)
+      message("\u2705 Stopped local server ", target_id)
       return(invisible(TRUE))
     }
   }
@@ -57,17 +57,17 @@ motis_stop_server <- function(server = NULL, id = NULL, port = NULL, include_all
       if (.motis_pid_is_running(target_pid)) {
         tryCatch({
           ps::ps_kill(ps::ps_handle(as.integer(target_pid)))
-          message("✅ Killed external process PID ", target_pid)
+          message("\u2705 Killed external process PID ", target_pid)
           return(invisible(TRUE))
         }, error = function(e) {
           warning("Failed to kill external PID ", target_pid, ": ", e$message)
         })
       } else {
-        message("ℹ PID ", target_pid, " is not running.")
+        message("\u2139 PID ", target_pid, " is not running.")
       }
     }
   } else if (!is.null(target_id)) {
-    message("ℹ Server ", target_id, " not found in local registry. Use include_all=TRUE to check external sessions.")
+    message("\u2139 Server ", target_id, " not found in local registry. Use include_all=TRUE to check external sessions.")
   }
   
   invisible(FALSE)

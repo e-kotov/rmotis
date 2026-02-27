@@ -7,6 +7,7 @@
 #' @param echo_cmd A logical. If `TRUE`, prints the full command. Defaults to `FALSE`.
 #' @return A `motis_server` object (inherits from `processx::process`).
 #' @export
+#' @importFrom utils tail
 motis_start_server <- function(
   work_dir,
   motis_path = NULL,
@@ -110,7 +111,7 @@ motis_start_server <- function(
   id <- .motis_register(server_process, port, work_dir)
 
   message(
-    "✅ MOTIS server started on http://127.0.0.1:",
+    "\u2705 MOTIS server started on http://127.0.0.1:",
     port,
     " (PID: ",
     server_process$get_pid(),

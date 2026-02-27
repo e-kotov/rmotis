@@ -21,3 +21,6 @@ most queries (even very long or complex ones) are not capped by the server.
 This function automatically targets the server configuration (usually in
 the \verb{data/} subdirectory).
 }
+\details{
+The preset includes \code{limits.onetomany_max_many = 30000}.
+}

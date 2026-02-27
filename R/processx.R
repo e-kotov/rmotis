@@ -57,14 +57,14 @@ motis_add_assets <- function(
 
   if (assets_action != "none") {
     message("--- Handling MOTIS assets ---")
-    assets_to_manage <- c("tiles-profiles", "ui")
+    assets_to_manage <- c("tiles-profiles", "ui", "web")
     for (asset in assets_to_manage) {
       src_path <- file.path(motis_install_dir, asset)
       dest_path <- file.path(work_dir, asset)
 
       if (!dir.exists(src_path)) {
         message(
-          "  ℹ Asset directory not found in MOTIS installation, skipping: ",
+          "  \u2139 Asset directory not found in MOTIS installation, skipping: ",
           asset
         )
         next
@@ -207,6 +207,8 @@ motis_set_server_address <- function(
 #'   \item `stoptimes_max_results`: Max results for stoptimes (default: 256).
 #'   \item `plan_max_results`: Max results for plan queries (default: 256).
 #'   \item `plan_max_search_window_minutes`: Max search window in minutes (max: 21600).
+#'   \item `onetomany_max_many`: Maximum accepted number of `many` locations
+#'     for one-to-many requests.
 #'   \item `onetoall_max_results`: Max results for one-to-all queries.
 #'   \item `onetoall_max_travel_minutes`: Max travel duration for one-to-all.
 #'   \item `routing_max_timeout_seconds`: Max duration for a routing query (default: 90).
@@ -319,6 +321,9 @@ motis_set_config <- function(config_path, ..., force = FALSE) {
     config_list <- .deep_update(config_list, updates)
   }
 
+  # Ensure types are correct for YAML output (e.g. integers instead of doubles)
+  config_list <- .cast_config_types(config_list)
+
   yaml::write_yaml(config_list, config_path)
   message("  -> Updated '", basename(config_path), "' with new configuration.")
   invisible(config_path)
@@ -330,6 +335,8 @@ motis_set_config <- function(config_path, ..., force = FALSE) {
 #' most queries (even very long or complex ones) are not capped by the server.
 #' This function automatically targets the server configuration (usually in
 #' the `data/` subdirectory).
+#'
+#' The preset includes `limits.onetomany_max_many = 30000`.
 #'
 #' @param path Path to the `config.yml` file, the `data/` directory,
 #'   or the root MOTIS project directory.
@@ -344,6 +351,7 @@ motis_unlock_limits <- function(path, force = FALSE) {
     plan_max_results = 1000L,
     plan_max_search_window_minutes = 21600L,
     stops_max_results = 10000L,
+    onetomany_max_many = 30000L,
     onetoall_max_results = 1000000L,
     onetoall_max_travel_minutes = 10000L,
     routing_max_timeout_seconds = 300L,
@@ -473,7 +481,7 @@ motis_config <- function(
     motis_unlock_limits(config_file, force = TRUE)
   }
 
-  message("✅ `config.yml` generated and configured successfully.")
+  message("\u2705 `config.yml` generated and configured successfully.")
   invisible(config_file)
 }
 
@@ -517,7 +525,7 @@ motis_import <- function(
   if (!dir.exists(data_dir)) {
     stop("MOTIS import failed to create the 'data' directory.", call. = FALSE)
   }
-  message("✅ Data imported successfully in: ", data_dir)
+  message("\u2705 Data imported successfully in: ", data_dir)
   invisible(data_dir)
 }
 

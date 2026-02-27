@@ -121,7 +121,7 @@ set_path_session <- function(dir, quiet = FALSE) {
     Sys.setenv(PATH = new_path)
     if (!quiet) {
       message(
-        "✔ PATH set for current session: '",
+        "\u2714 PATH set for current session: '",
         normalized_dir,
         "'\n",
         "  (Undo by restarting R or running `motis_clear_path()`)"
@@ -190,7 +190,7 @@ set_path_project <- function(dir, project_path, quiet = FALSE) {
   }
   if (!quiet) {
     message(
-      "✔ .Rprofile modified. PATH will be set on project startup.\n",
+      "\u2714 .Rprofile modified. PATH will be set on project startup.\n",
       "  (Undo by running `motis_clear_path()`)"
     )
   }

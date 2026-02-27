@@ -6,42 +6,58 @@
 \usage{
 motis_one_to_many(
   one,
-  one_id_col = "id",
   many,
+  one_id_col = "id",
   many_id_col = "id",
   mode = c("WALK", "BIKE", "CAR"),
   arrive_by = FALSE,
   max = 7200,
   maxMatchingDistance = 1000,
+  withDistance = FALSE,
   ...,
-  output = c("data.frame", "raw_list")
+  engine = c("api", "batch"),
+  output = c("data.frame", "raw_list"),
+  parallel = TRUE,
+  backend = c("auto", "httr2", "mirai"),
+  batch_size = NULL,
+  max_destinations_per_batch = NULL,
+  output_path = NULL,
+  checkpoint_file = NULL,
+  progress = TRUE,
+  data_dir = NULL,
+  temp_dir = tempdir(),
+  keep_files = FALSE,
+  eol = NULL,
+  motis_path = NULL
 )
 }
 \arguments{
-\item{one}{The single origin (when \code{arrive_by = FALSE}) or destination
-(when \code{arrive_by = TRUE}). Can be a character vector of an ID,
-a data frame/tibble with coordinate columns, an \code{sf} object with a
-single POINT geometry, or a numeric vector/matrix (\code{lon}, \code{lat}).}
+\item{one}{Origin(s). Can be a data frame/tibble with coordinate columns,
+an \code{sf} object, or a vector/matrix of coordinates.}
 
-\item{many}{The multiple destinations (when \code{arrive_by = FALSE}) or origins
-(when \code{arrive_by = TRUE}). Can be a character vector of IDs, a data
-frame/tibble with ID or coordinate columns, an \code{sf} object with POINT
-geometry, or a numeric matrix (\code{lon}, \code{lat}).}
+\item{many}{Destination(s). Same format as \code{one}.}
+
+\item{one_id_col}{The name of the column in \code{one} to use for identifying
+the point in the output. Defaults to \code{"id"}.}
 
 \item{many_id_col}{The name of the column in \code{many} to use for identifying
-the points in the output. Defaults to \code{"id"}. If the input has no such
-column, a sequence of numbers is used.}
+the point in the output. Defaults to \code{"id"}.}
 
 \item{mode}{The routing profile to use. Defaults to \code{"WALK"}.}
 
 \item{arrive_by}{Logical. If \code{FALSE} (the default), calculates routes from
 \code{one} to \code{many}. If \code{TRUE}, calculates routes from \code{many} to \code{one}.}
 
+\item{max}{maximum travel time in seconds}
+
+\item{maxMatchingDistance}{maximum matching distance in meters}
+
+\item{withDistance}{Logical. Include distance in the output?
+Defaults to \code{FALSE}.}
+
 \item{...}{
   Arguments passed on to \code{\link[motis.client:mc_oneToMany]{motis.client::mc_oneToMany}}
   \describe{
-    \item{\code{max}}{maximum travel time in seconds}
-    \item{\code{maxMatchingDistance}}{maximum matching distance in meters to match geo coordinates to the street network}
     \item{\code{elevationCosts}}{Optional. Default is \code{NONE}.
 
 Set an elevation cost profile, to penalize routes with incline.
@@ -62,34 +78,70 @@ Elevation cost profiles are currently used by following street modes:
 }
 
 Allowed values: NONE, LOW, HIGH.}
-    \item{\code{.return_as}}{How to return the response. One of 'list' (default), 'string', or 'raw'.}
-    \item{\code{.json_parser}}{JSON parser when \code{.return_as = 'list'}. One of 'RcppSimdJson' (default) or 'jsonlite'.}
-    \item{\code{.headers}}{Named list of additional HTTP headers to include.}
-    \item{\code{.auth}}{Bearer token string or a function \code{function(req) req} to apply custom auth.}
-    \item{\code{.throttle_rate}}{Requests per second (numeric). If set, throttling is applied.}
-    \item{\code{.build_only}}{If TRUE, return the unperformed request object.}
-    \item{\code{.server}}{Override the server URL for this call.}
-    \item{\code{.endpoint}}{A string to override the path for this specific request (e.g., '/v2/users/{id}'). If provided, it will be used instead of the default path from the specification.}
-    \item{\code{.referer}}{Optional Referer header value.}
-    \item{\code{.req_options}}{Named list of curl options passed to \code{httr2::req_options()}.}
-    \item{\code{.handle_response}}{Optional function \code{function(resp) ...} to post-process the response.}
-    \item{\code{.json_auto_unbox}}{If TRUE (default), auto-unbox scalar JSON values for request bodies.}
+    \item{\code{.return_as}}{A string specifying the return format. Defaults to 'list'. Options are 'list' for a parsed R list, 'raw' for the raw httr2_response object, or 'string' for the raw JSON string.}
+    \item{\code{.json_parser}}{A string specifying which parser to use when .return_as = 'list'. Defaults to 'RcppSimdJson' (faster) or 'jsonlite'. Beware that their output may differ slightly.}
+    \item{\code{.headers}}{A named list of extra HTTP headers to add to the request. If no 'Accept' header is provided anywhere, 'Accept: \emph{/}' will be sent by default.}
+    \item{\code{.auth}}{An authentication token or method (e.g., a bearer token string).}
+    \item{\code{.throttle_rate}}{A number to pass to \code{httr2::req_throttle()} to limit the rate of requests. For example, \code{15/60} means 15 requests per minute. This overrides any default rate set at client generation time.}
+    \item{\code{.build_only}}{A logical. If TRUE, the function will build and return the httr2_request object without performing it. Defaults to FALSE.}
+    \item{\code{.server}}{A string to override the base URL for this specific request. If provided, it will be used instead of the default server URL.}
+    \item{\code{.referer}}{A string to set the Referer HTTP header.}
+    \item{\code{.req_options}}{A named list of curl options passed to \code{httr2::req_options()}. Useful for timeouts, proxies, SSL, etc.}
+    \item{\code{.handle_response}}{A function taking an \code{httr2_response} and returning a value. If supplied, it overrides \code{.return_as} / \code{.json_parser} handling. See helpers like \code{oa3_content_or_stop()}.}
+    \item{\code{.json_auto_unbox}}{Logical. If TRUE, JSON bodies are encoded with \code{auto_unbox = TRUE} (jsonlite). Defaults to FALSE unless overridden.}
+    \item{\code{.paginate}}{A logical, character string, or function to enable pagination. If TRUE (or "link_header"), uses Link headers. Other options: "page_param", "cursor_param", or a custom function. See \code{oa3_paginate()}.}
   }}
+
+\item{engine}{Execution engine:
+\itemize{
+\item \code{"api"} (default): Uses the MOTIS POST API. Supports parallel backends.
+\item \code{"batch"}: Uses the MOTIS CLI batch command. \strong{Recommended for very large
+datasets} (millions of routes). Requires \code{data_dir}.
+}}
 
 \item{output}{The desired output format. One of:
 \itemize{
-\item \code{"data.frame"} (default): A tidy data frame with travel times and distances.
-\item \code{"raw_list"}: The raw parsed JSON response as a list.
+\item \code{"data.frame"} (default): A tidy data frame.
+\item \code{"raw_list"}: The raw parsed JSON response (only for \code{engine='api'} and non-parallel execution).
 }}
+
+\item{parallel}{Logical. Enable parallel processing for the API engine?
+Defaults to \code{TRUE}.}
+
+\item{backend}{Parallel backend for API engine: \code{"auto"}, \code{"httr2"}, or \code{"mirai"}.}
+
+\item{batch_size}{Number of origins to process per batch/request.}
+
+\item{max_destinations_per_batch}{Optional limit to split destinations into
+multiple requests to avoid memory or timeout issues.}
+
+\item{output_path}{Optional path to write results incrementally (\code{.csv},
+\code{.duckdb}, or \strong{Directory} of \code{.parquet} files).}
+
+\item{checkpoint_file}{Optional path for checkpointing progress (API engine only).}
+
+\item{progress}{Logical. Display progress bar/messages?}
+
+\item{data_dir}{Path to MOTIS data directory. Required if \code{engine='batch'}.}
+
+\item{temp_dir}{Directory for temporary batch files. Defaults to \code{tempdir()}.}
+
+\item{keep_files}{Logical. Keep temporary files? Defaults to \code{FALSE}.}
+
+\item{eol}{Optional line ending for batch query files (e.g., \code{"\\n"} for LF or
+\code{"\\r\\n"} for CRLF). If provided, forces this line ending even on Windows.
+Typically, \code{"\\n"} is required for MOTIS batch processing.}
+
+\item{motis_path}{Path to the directory containing the MOTIS binary, or
+\code{NULL} to use the system PATH.}
 }
 \value{
-Depending on the \code{output} parameter, a \code{data.frame} or a list.
-The data frame will contain columns for the identifier of each point in \code{many},
-the \code{duration_seconds}, and the \code{distance_meters}.
+Depending on the \code{output} parameter and \code{output_path}, a \code{data.frame},
+a list, or the \code{output_path} invisibly.
 }
 \description{
-This function is a user-friendly wrapper for the MOTIS \code{one-to-many} street
-routing API. It computes travel time and distance from a single origin to
-multiple destinations (or from multiple origins to a single destination)
-using a specified travel mode (e.g., walking, cycling, or driving).
+This function computes travel time and distance from origin(s) to
+multiple destinations (or vice versa). It supports both simple single-request
+execution and robust parallel/batch execution for large datasets using either
+the MOTIS API or the MOTIS CLI batch engine.
 }

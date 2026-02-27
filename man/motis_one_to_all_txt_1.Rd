@@ -10,6 +10,7 @@ motis_one_to_all_txt_1(
   time = Sys.time(),
   arrive_by = FALSE,
   max_travel_time = 90,
+  quiet = FALSE,
   ...
 )
 }
@@ -26,6 +27,8 @@ will be written.}
 \code{one}. If \code{TRUE}, calculates routes to \code{one}.}
 
 \item{max_travel_time}{Integer. The maximum travel time in minutes. Defaults to 120.}
+
+\item{quiet}{Logical. If \code{TRUE}, suppress status messages.}
 
 \item{...}{Additional parameters to be passed to the MOTIS One-to-All API,
 (e.g., \code{maxTransfers}, \code{transitModes}).}

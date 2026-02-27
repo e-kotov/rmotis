@@ -15,14 +15,14 @@
 #' @param toPlace Character. Destination place ("lat,lon`[,level]`" or stop id). Required.
 #' @param via Character vector (max length 2). Stop IDs to visit in order (coords not allowed). See also viaMinimumStay.
 #' @param viaMinimumStay Integer vector (max length 2). Minimum stay (minutes) for each via. If omitted, server uses 0,0 (staying in the same trip allowed).
-#' @param time POSIXct or RFC3339 string. Departure time (arriveBy=FALSE) or arrival time (arriveBy=TRUE). Defaults to server ‚Äúnow‚Äù if unset.
+#' @param time POSIXct or RFC3339 string. Departure time (arriveBy=FALSE) or arrival time (arriveBy=TRUE). Defaults to server "now" if unset.
 #' @param maxTransfers Integer. Max allowed transfers (see spec warnings: too low may miss optimal journeys / slow performance).
 #' @param maxTravelTime Integer minutes. Max travel time. See warnings in spec.
 #' @param minTransferTime Integer minutes. Default 0. Minimum transfer time.
 #' @param additionalTransferTime Integer minutes. Default 0. Extra time reserved per transfer.
-#' @param transferTimeFactor Numeric. Default 1.0 (‚â•1). Multiplies min transfer times.
+#' @param transferTimeFactor Numeric. Default 1.0 (>=1). Multiplies min transfer times.
 #' @param maxMatchingDistance Numeric meters. Default 25. Max distance to match coords to street network.
-#' @param pedestrianProfile Character enum: "FOOT" (default), "WHEELCHAIR". Used for transfers/first‚Äìlast mile.
+#' @param pedestrianProfile Character enum: "FOOT" (default), "WHEELCHAIR". Used for transfers/first-last mile.
 #' @param elevationCosts Character enum: "NONE" (default), "LOW", "HIGH". Penalize incline for street segments (esp. BIKE).
 #' @param useRoutedTransfers Logical. Default FALSE. Use OSM-routed transfers.
 #' @param detailedTransfers Logical. Required by API. Default TRUE. If TRUE, compute transfer polylines and step instructions.
@@ -37,7 +37,7 @@
 #' @param ignoreDirectRentalReturnConstraints,ignorePreTransitRentalReturnConstraints,ignorePostTransitRentalReturnConstraints Logical (experimental). If TRUE, ignore rental return constraints for the respective segments.
 #' @param numItineraries Integer. Default 5. Used when timetableView=TRUE.
 #' @param pageCursor Character. Cursor for paging (copy from previous response).
-#' @param timetableView Logical. Default TRUE. Optimize ‚Äúlater departure‚Äù & ‚Äúearlier arrival‚Äù over a time window (see spec details & examples).
+#' @param timetableView Logical. Default TRUE. Optimize "later departure" & "earlier arrival" over a time window (see spec details & examples).
 #' @param arriveBy Logical. Default FALSE. If TRUE, time is arrival time; else departure time.
 #' @param searchWindow Integer seconds. Default 7200 (2h). Window length (interaction with arriveBy per spec).
 #' @param requireBikeTransport,requireCarTransport Logical. If TRUE, only trips that allow carriage of bike/car.

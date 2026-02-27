@@ -1,5 +1,8 @@
 # R/helpers.R optimized for memory
 
+#' @importFrom rlang %||%
+NULL
+
 # minimal internal %||% (no extra deps)
 `%||%` <- function(x, y) if (!is.null(x)) x else y
 
@@ -384,8 +387,8 @@ debug_msg <- function(...) {
     }
     id_col_lower <- tolower(id_col)
     if (id_col_lower %in% p_names) {
-      id_col_idx <- which(p_names == id_col_lower)
-      return(unname(as.character(place[[id_col_idx]])))
+      id_col_idx <- function(x) which(p_names == id_col_lower)
+      return(unname(as.character(place[[id_col_idx(p_names)]])))
     }
     stop("Data frame must contain coordinate columns ('lat', 'lon') or an '", id_col, "' column.", call. = FALSE)
   }
@@ -402,6 +405,31 @@ debug_msg <- function(...) {
   stop("Unsupported input type.", call. = FALSE)
 }
 
+#' Internal helper to collapse vector arguments in dots to comma-separated strings
+#' @param dots List of arguments
+#' @return Modified list of arguments
+#' @noRd
+.collapse_dots <- function(dots) {
+  lapply(dots, function(x) {
+    if (length(x) > 1 && is.atomic(x)) {
+      paste(unname(x), collapse = ",")
+    } else if (is.atomic(x)) {
+      unname(x)
+    } else {
+      x
+    }
+  })
+}
+
+#' Internal helper to format time as ISO 8601 UTC string (with Z)
+#' @param time POSIXct or character
+#' @return Character vector in format %Y-%m-%dT%H:%M:%SZ
+#' @noRd
+.format_time_utc <- function(time) {
+  fmt <- format(as.POSIXct(time), "%Y-%m-%dT%H:%M:%S", tz = "UTC")
+  paste0(fmt, "Z")
+}
+
 # Recursive list update helper
 .deep_update <- function(base, updates) {
   if (!is.list(updates)) return(updates)
@@ -413,6 +441,46 @@ debug_msg <- function(...) {
     }
   }
   base
+}
+
+#' Recursively cast numeric values to integer where appropriate
+#' @param x A list (the configuration structure)
+#' @return The list with modified types
+#' @noRd
+.cast_config_types <- function(x) {
+  # 1. Known integer fields that MUST be integers
+  strict_int_fields <- c(
+    "n_threads", "port", "db_size", "flush_threshold",
+    "num_days", "update_interval", "http_timeout",
+    "stoptimes_max_results", "plan_max_results", "onetomany_max_many",
+    "onetoall_max_results",
+    "onetoall_max_travel_minutes", "routing_max_timeout_seconds",
+    "gtfsrt_expose_max_trip_updates", "link_stop_distance", "max_footpath_length"
+  )
+
+  if (is.list(x)) {
+    nms <- names(x)
+    for (i in seq_along(x)) {
+      name <- if (!is.null(nms)) nms[i] else ""
+      
+      # Recursive call for nested lists
+      if (is.list(x[[i]])) {
+        x[[i]] <- .cast_config_types(x[[i]])
+      } else if (is.numeric(x[[i]]) && !is.integer(x[[i]])) {
+        # 2. Heuristic: if it's numeric but looks like a whole number, cast it
+        # 3. OR if it's in our strict list, cast it
+        # BUT only if it fits in a 32-bit integer range to avoid NAs
+        is_whole <- all(x[[i]] == floor(x[[i]]), na.rm = TRUE)
+        is_strict <- name %in% strict_int_fields
+        fits_int <- all(x[[i]] <= .Machine$integer.max && x[[i]] >= -.Machine$integer.max, na.rm = TRUE)
+        
+        if ((is_whole || is_strict) && fits_int) {
+          x[[i]] <- as.integer(x[[i]])
+        }
+      }
+    }
+  }
+  x
 }
 
 #' Resolve path to config.yml with smart detection
@@ -473,4 +541,290 @@ debug_msg <- function(...) {
     stop("Could not identify a MOTIS root (import) directory at: ", path,
          "\nA root directory should contain exactly one .osm.pbf file and 'config.yml'.", call. = FALSE)
   }
+}
+
+# --- Batch Query Generation Helpers ---
+
+#' Internal helper to build URL parameters string from a list
+#' @param params List of parameters
+#' @return String starting with '&'
+#' @noRd
+.build_static_suffix <- function(params) {
+  params <- Filter(Negate(is.null), params)
+  if (length(params) == 0) return("")
+
+  keys <- names(params)
+  # Vectorised processing of values
+  vals <- vapply(params, function(v) {
+    if (is.logical(v)) return(tolower(as.character(v)))
+    if (length(v) > 1) return(paste(v, collapse = ","))
+    as.character(v)
+  }, character(1))
+
+  paste0("&", paste(curl::curl_escape(keys), curl::curl_escape(vals), sep = "=", collapse = "&"))
+}
+
+#' Internal helper to strictly validate key parameter types
+#' @param params List of parameters to check
+#' @noRd
+.validate_batch_params <- function(params) {
+  # Direct check for known boolean parameters
+  bool_params <- c(
+    "arriveBy", "wheelchair", "detailedTransfers", "useRoutedTransfers", 
+    "requireBikeTransport", "requireCarTransport", "withFares", 
+    "withScheduledSkippedStops", "slowDirect"
+  )
+  for (p in bool_params) {
+    if (!is.null(params[[p]]) && !is.logical(params[[p]])) {
+      stop("Parameter '", p, "' must be logical (TRUE/FALSE), not ", typeof(params[[p]]), ".", call. = FALSE)
+    }
+  }
+
+  # Direct check for known integer/numeric parameters
+  int_params <- c(
+    "maxTransfers", "maxTravelTime", "minTransferTime", "additionalTransferTime",
+    "maxMatchingDistance", "passengers", "numItineraries", "maxItineraries"
+  )
+  for (p in int_params) {
+    if (!is.null(params[[p]]) && !is.numeric(params[[p]])) {
+      stop("Parameter '", p, "' must be numeric/integer, not ", typeof(params[[p]]), ".", call. = FALSE)
+    }
+  }
+}
+
+#' Extract coordinate matrix from various input types
+#' @param place Input object (sf, data.frame, matrix, character)
+#' @return Numeric matrix with 2 columns (lat, lon) and n rows
+#' @noRd
+.extract_coords <- function(place) {
+  # sf: use st_coordinates and swap X/Y to lat/lon
+  if (inherits(place, "sf")) {
+    rlang::check_installed("sf")
+    coords <- sf::st_coordinates(place)
+    
+    # Handle potential multipoint/complex geometries by taking centroids
+    if (nrow(coords) != nrow(place)) {
+      coords <- sf::st_coordinates(sf::st_centroid(place))
+    }
+    
+    # X = lon, Y = lat
+    return(cbind(lat = coords[, "Y"], lon = coords[, "X"]))
+  }
+  
+  # data.frame: find lat/lon columns
+  if (is.data.frame(place)) {
+    p_names <- tolower(names(place))
+    lat_col <- which(p_names %in% c("lat", "latitude"))
+    lon_col <- which(p_names %in% c("lon", "lng", "longitude"))
+    
+    if (length(lat_col) == 1 && length(lon_col) == 1) {
+      lat <- as.numeric(place[[lat_col]])
+      lon <- as.numeric(place[[lon_col]])
+      return(cbind(lat = lat, lon = lon))
+    }
+    
+    stop("Data frame must contain coordinate columns ('lat', 'lon').", call. = FALSE)
+  }
+  
+  # matrix: assume 2 columns, detect if named
+  if (is.matrix(place) && is.numeric(place)) {
+    if (ncol(place) != 2) {
+      stop("Matrix must have 2 columns for coordinates.", call. = FALSE)
+    }
+    
+    cnames <- tolower(colnames(place))
+    if (!is.null(cnames) && all(c("lon", "lat") %in% cnames)) {
+      return(cbind(lat = place[, "lat"], lon = place[, "lon"]))
+    }
+    
+    # Assume column order is (lon, lat) or (lat, lon) based on values
+    # Latitude is typically -90 to 90, longitude -180 to 180
+    col1_range <- range(place[, 1], na.rm = TRUE)
+    if (all(col1_range >= -90 & col1_range <= 90)) {
+      # col1 is latitude
+      return(cbind(lat = place[, 1], lon = place[, 2]))
+    } else {
+      # col1 is longitude
+      return(cbind(lat = place[, 2], lon = place[, 1]))
+    }
+  }
+  
+  # character: parse "lat;lon" strings
+  if (is.character(place)) {
+    parts <- strsplit(place, ";", fixed = TRUE)
+    lats <- vapply(parts, function(p) as.numeric(p[1]), numeric(1))
+    lons <- vapply(parts, function(p) as.numeric(p[2]), numeric(1))
+    return(cbind(lat = lats, lon = lons))
+  }
+  
+  stop("Unsupported input type for coordinate extraction.", call. = FALSE)
+}
+
+#' Internal helper to sort points spatially
+#' @param pts A coordinate matrix (lat, lon)
+#' @param method Sort method: "z-order" or "lat"
+#' @return Integer vector of indices
+#' @noRd
+.spatial_sort_points <- function(pts, method = c("z-order", "lat")) {
+  method <- match.arg(method)
+  if (nrow(pts) <= 1) return(seq_len(nrow(pts)))
+  
+  if (method == "lat") {
+    return(order(pts[, "lat"]))
+  }
+  
+  # Z-order (Morton curve) using bit-interleaving
+  # Quantize to 1024x1024 grid (10 bits each)
+  lat_range <- range(pts[, "lat"], na.rm = TRUE)
+  lon_range <- range(pts[, "lon"], na.rm = TRUE)
+  
+  lat_q <- as.integer((pts[, "lat"] - lat_range[1]) / (max(diff(lat_range), 1e-7)) * 1023)
+  lon_q <- as.integer((pts[, "lon"] - lon_range[1]) / (max(diff(lon_range), 1e-7)) * 1023)
+  
+  # Interleave bits (simplified version: (lat_q << 10) | lon_q)
+  # This provides good spatial locality for MOTIS graph cache
+  z_order <- bitwOr(bitwShiftL(lat_q, 10), lon_q)
+  order(z_order)
+}
+
+#' Smart chunking dispatcher for one-to-many routing
+#' @param n_origins Total number of origins
+#' @param n_dests Total number of destinations
+#' @param engine Engine type ("api" or "batch")
+#' @param batch_size User-requested batch size (origins per request)
+#' @param max_destinations_per_batch User-requested max destinations per batch
+#' @return A list with calculated `batch_size` and `dest_chunks` (list of indices)
+#' @noRd
+.smart_chunk_dispatch <- function(n_origins, n_dests, engine = c("api", "batch"), 
+                                  batch_size = NULL, max_destinations_per_batch = NULL) {
+  engine <- match.arg(engine)
+  
+  # 1. Origins per request (batch_size)
+  if (is.null(batch_size)) {
+    # API defaults to 16 for parallel robustness
+    # Batch defaults to 1000 to keep query file size reasonable
+    batch_size <- if (engine == "api") 16L else 1000L 
+  }
+  
+  # 2. Destinations per request (splitting)
+  # Heuristic: Priority is origin-first. Only split destinations if count is very high.
+  if (is.null(max_destinations_per_batch)) {
+    # 50k dests is a safe default for memory/JSON limits
+    max_destinations_per_batch <- if (engine == "api") 10000L else 50000L
+  }
+  
+  # Ensure max_destinations_per_batch is at least 1
+  max_destinations_per_batch <- max(1L, as.integer(max_destinations_per_batch))
+  
+  # Create destination chunks
+  n_chunks <- ceiling(n_dests / max_destinations_per_batch)
+  if (n_chunks <= 1) {
+    dest_chunks <- list(seq_len(n_dests))
+  } else {
+    # Split indices as evenly as possible
+    dest_chunks <- base::split(seq_len(n_dests), cut(seq_len(n_dests), n_chunks, labels = FALSE))
+  }
+  
+  list(
+    batch_size = as.integer(batch_size),
+    dest_chunks = dest_chunks
+  )
+}
+
+#' Unified output handler for routing results
+#' @param results A data.frame of results
+#' @param output_path Path to write to
+#' @param format Output format: "data.frame", "parquet", "csv", "duckdb"
+#' @param append Logical, whether to append
+#' @param ... Additional args (e.g., table name for duckdb)
+#' @return The output_path invisibly, or the results if format is "data.frame"
+#' @noRd
+.unified_output_handler <- function(results, output_path, format = c("data.frame", "parquet", "csv", "duckdb"), append = TRUE, ...) {
+  format <- match.arg(format)
+  if (is.null(output_path) || format == "data.frame") return(results)
+  if (nrow(results) == 0) return(invisible(output_path))
+  
+  dots <- list(...)
+  
+  if (format == "parquet") {
+    rlang::check_installed("arrow")
+    # If output_path ends in .parquet and is NOT a directory, treat as single file
+    # UNLESS it already exists as a directory
+    is_dir <- dir.exists(output_path) || !grepl("\\.parquet$", output_path, ignore.case = TRUE)
+    
+    if (is_dir) {
+       if (!dir.exists(output_path)) dir.create(output_path, recursive = TRUE)
+       # Count existing parts to avoid collision
+       batch_num <- length(list.files(output_path, pattern = "\\.parquet$")) + 1
+       file_path <- file.path(output_path, sprintf("part_%04d.parquet", batch_num))
+       arrow::write_parquet(results, file_path)
+    } else {
+       # Single file. Note: arrow::write_parquet doesn't support append.
+       # If file exists and append=TRUE, we should ideally handle it, but for now 
+       # we'll just write (which overwrites).
+       arrow::write_parquet(results, output_path)
+    }
+  } else if (format == "csv") {
+    if (rlang::is_installed("data.table") && requireNamespace("data.table", quietly = TRUE)) {
+      data.table::fwrite(results, file = output_path, append = append, col.names = !append || !file.exists(output_path))
+    } else {
+      utils::write.table(results, file = output_path, append = append, col.names = !append || !file.exists(output_path),
+                         row.names = FALSE, sep = ",", quote = TRUE)
+    }
+  } else if (format == "duckdb") {
+    rlang::check_installed(c("duckdb", "DBI"))
+    table_name <- dots$table_name %||% "routing_results"
+    
+    con <- getNamespace("DBI")$dbConnect(getNamespace("duckdb")$duckdb(), output_path)
+    on.exit(getNamespace("DBI")$dbDisconnect(con, shutdown = TRUE))
+    
+    getNamespace("DBI")$dbWriteTable(con, table_name, results, append = append)
+  }
+  
+  invisible(output_path)
+}
+
+#' Temporary file manager for routing engines
+#' @param temp_dir Path to temp directory
+#' @param prefix Prefix for file names
+#' @return A list of file paths (query, meta, response, checkpoint)
+#' @noRd
+.temp_file_manager <- function(temp_dir = tempdir(), prefix = "motis_") {
+  if (!dir.exists(temp_dir)) dir.create(temp_dir, recursive = TRUE)
+  
+  # Generate a reasonably unique ID for this session/run
+  # Use old-style prefixing to keep tests happy
+  unique_id <- paste0(prefix, format(Sys.time(), "%Y%m%d_%H%M%S"), "_", 
+                      sprintf("%06d", floor(stats::runif(1, 0, 1e6))))
+  
+  list(
+    query = file.path(temp_dir, paste0("motis_query_", unique_id, ".txt")),
+    meta = file.path(temp_dir, paste0("motis_query_", unique_id, ".txt.meta")),
+    response = file.path(temp_dir, paste0("motis_response_", unique_id, ".txt")),
+    checkpoint = file.path(temp_dir, paste0("motis_checkpoint_", unique_id, ".txt")),
+    dir = temp_dir
+  )
+}
+
+
+#' Internal helper to get bounding box radii in degrees
+#' @param radius_km Radius in kilometers.
+#' @param lat Latitude in decimal degrees.
+#' @return A list with `lat` and `lon` radius in degrees.
+#' @noRd
+.km_to_deg <- function(radius_km, lat) {
+  # Earth's mean radius in km (WGS84 approximately)
+  R <- 6371
+  
+  # Latitude degrees are approximately constant
+  lat_deg <- (radius_km / R) * (180 / pi)
+  
+  # Longitude degrees converge at the poles
+  # Clamp latitude to avoid division by zero
+  lat_rad <- abs(lat) * (pi / 180)
+  if (lat_rad > 1.55) lat_rad <- 1.55 # ~89 degrees
+  
+  lon_deg <- lat_deg / cos(lat_rad)
+  
+  list(lat = lat_deg, lon = lon_deg)
 }

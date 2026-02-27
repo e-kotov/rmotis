@@ -42,6 +42,8 @@ project folder.
 \item \code{stoptimes_max_results}: Max results for stoptimes (default: 256).
 \item \code{plan_max_results}: Max results for plan queries (default: 256).
 \item \code{plan_max_search_window_minutes}: Max search window in minutes (max: 21600).
+\item \code{onetomany_max_many}: Maximum accepted number of \code{many} locations
+for one-to-many requests.
 \item \code{onetoall_max_results}: Max results for one-to-all queries.
 \item \code{onetoall_max_travel_minutes}: Max travel duration for one-to-all.
 \item \code{routing_max_timeout_seconds}: Max duration for a routing query (default: 90).

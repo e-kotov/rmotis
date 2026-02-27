@@ -71,7 +71,7 @@ motis_plan_manual(
 
 \item{viaMinimumStay}{Integer vector (max length 2). Minimum stay (minutes) for each via. If omitted, server uses 0,0 (staying in the same trip allowed).}
 
-\item{time}{POSIXct or RFC3339 string. Departure time (arriveBy=FALSE) or arrival time (arriveBy=TRUE). Defaults to server ‚Äúnow‚Äù if unset.}
+\item{time}{POSIXct or RFC3339 string. Departure time (arriveBy=FALSE) or arrival time (arriveBy=TRUE). Defaults to server "now" if unset.}
 
 \item{maxTransfers}{Integer. Max allowed transfers (see spec warnings: too low may miss optimal journeys / slow performance).}
 
@@ -81,11 +81,11 @@ motis_plan_manual(
 
 \item{additionalTransferTime}{Integer minutes. Default 0. Extra time reserved per transfer.}
 
-\item{transferTimeFactor}{Numeric. Default 1.0 (‚â•1). Multiplies min transfer times.}
+\item{transferTimeFactor}{Numeric. Default 1.0 (>=1). Multiplies min transfer times.}
 
 \item{maxMatchingDistance}{Numeric meters. Default 25. Max distance to match coords to street network.}
 
-\item{pedestrianProfile}{Character enum: "FOOT" (default), "WHEELCHAIR". Used for transfers/first‚Äìlast mile.}
+\item{pedestrianProfile}{Character enum: "FOOT" (default), "WHEELCHAIR". Used for transfers/first-last mile.}
 
 \item{elevationCosts}{Character enum: "NONE" (default), "LOW", "HIGH". Penalize incline for street segments (esp. BIKE).}
 
@@ -115,7 +115,7 @@ motis_plan_manual(
 
 \item{pageCursor}{Character. Cursor for paging (copy from previous response).}
 
-\item{timetableView}{Logical. Default TRUE. Optimize ‚Äúlater departure‚Äù & ‚Äúearlier arrival‚Äù over a time window (see spec details & examples).}
+\item{timetableView}{Logical. Default TRUE. Optimize "later departure" & "earlier arrival" over a time window (see spec details & examples).}
 
 \item{arriveBy}{Logical. Default FALSE. If TRUE, time is arrival time; else departure time.}
 

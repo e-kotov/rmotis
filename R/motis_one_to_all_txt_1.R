@@ -108,6 +108,7 @@
 #' @param arrive_by Logical. If `FALSE` (the default), calculates routes from
 #'   `one`. If `TRUE`, calculates routes to `one`.
 #' @param max_travel_time Integer. The maximum travel time in minutes. Defaults to 120.
+#' @param quiet Logical. If `TRUE`, suppress status messages.
 #' @param ... Additional parameters to be passed to the MOTIS One-to-All API,
 #'   (e.g., `maxTransfers`, `transitModes`).
 #' @return Invisibly returns a character vector containing the generated request
@@ -118,7 +119,7 @@ motis_one_to_all_txt_1 <- function(
   output_file,
   time = Sys.time(),
   arrive_by = FALSE,
-  max_travel_time = 90,
+  max_travel_time = 90, quiet = FALSE,
   ...
 ) {
   # --- 1. Argument Validation ---
@@ -166,7 +167,7 @@ motis_one_to_all_txt_1 <- function(
 
   # --- 4. Write to File and Return ---
   writeLines(request_string, con = output_file)
-  message(
+  if (!quiet) message(
     "Successfully wrote 1 request to '",
     output_file,
     "'."

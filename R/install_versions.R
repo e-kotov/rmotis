@@ -25,6 +25,7 @@
 #' available_versions <- motis_check_available_versions()
 #' print(available_versions)
 #' }
+#' @importFrom stats setNames
 motis_check_available_versions <- function(prereleases = FALSE) {
   if (!requireNamespace("tibble", quietly = TRUE)) {
     stop("Package 'tibble' is required. Please install it.", call. = FALSE)
