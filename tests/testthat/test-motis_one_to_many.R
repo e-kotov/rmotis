@@ -2,6 +2,7 @@
 options(rmotis.wait_for_server = FALSE)
 
 test_that("motis_one_to_many works with mocked POST request", {
+  skip_if_not_installed("withr")
   # Define the mock response data
   mock_response_json <- '[
     {"one_id": "one_coords", "many_id": "1", "duration": 600, "distance": 1000},

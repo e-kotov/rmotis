@@ -1,9 +1,6 @@
 # R/helpers.R optimized for memory
 
 #' @importFrom rlang %||%
-#' @importFrom DBI dbConnect dbDisconnect dbWriteTable
-#' @importFrom duckdb duckdb
-#' @importFrom lifecycle badge deprecate_warn
 NULL
 
 # minimal internal %||% (no extra deps)
@@ -778,10 +775,10 @@ debug_msg <- function(...) {
     rlang::check_installed(c("duckdb", "DBI"))
     table_name <- dots$table_name %||% "routing_results"
     
-    con <- DBI::dbConnect(duckdb::duckdb(), output_path)
-    on.exit(DBI::dbDisconnect(con, shutdown = TRUE))
+    con <- getNamespace("DBI")$dbConnect(getNamespace("duckdb")$duckdb(), output_path)
+    on.exit(getNamespace("DBI")$dbDisconnect(con, shutdown = TRUE))
     
-    DBI::dbWriteTable(con, table_name, results, append = append)
+    getNamespace("DBI")$dbWriteTable(con, table_name, results, append = append)
   }
   
   invisible(output_path)

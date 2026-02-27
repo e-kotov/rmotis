@@ -12,16 +12,19 @@ Description: Client for Modular Open Transportation Information System
 License: MIT + file LICENSE
 URL: https://github.com/e-kotov/rmotis, https://www.ekotov.pro/rmotis/
 BugReports: https://github.com/e-kotov/rmotis/issues
+Depends: 
+    R (>= 4.1.0)
 Imports: 
     curl,
     dplyr,
     glue,
     googlePolylines (>= 0.8.8),
     httr2,
+    lifecycle,
     motis.client,
-    purrr,
     processx,
     ps,
+    purrr,
     RcppSimdJson,
     rlang,
     tibble,
@@ -30,6 +33,8 @@ Imports:
 Suggests: 
     arrow,
     data.table,
+    DBI,
+    duckdb,
     DT,
     jsonlite,
     mapgl,
@@ -38,7 +43,8 @@ Suggests:
     sfheaders,
     shiny,
     shinyjs,
-    testthat (>= 3.0.0)
+    testthat (>= 3.0.0),
+    withr
 Remotes:
     SymbolixAU/googlePolylines,
     e-kotov/motis.client

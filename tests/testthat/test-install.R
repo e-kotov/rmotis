@@ -1,6 +1,7 @@
 # --- parse_motis_asset_name() ---
 
 test_that("parse_motis_asset_name handles tar.bz2 for linux/macos", {
+  skip_if_not_installed("withr")
   expect_equal(
     parse_motis_asset_name("motis-linux-amd64.tar.bz2"),
     list(os = "linux", arch = "amd64")

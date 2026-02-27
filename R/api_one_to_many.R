@@ -54,6 +54,7 @@
 #' @importFrom httr2 req_perform resp_body_json
 #' @importFrom dplyr bind_rows
 #' @importFrom rlang check_installed is_installed
+#' @import lifecycle
 motis_one_to_many <- function(
   one,
   many,
