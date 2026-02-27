@@ -14,10 +14,10 @@
 - [x] Task: Update `R/helpers.R` or `R/api_one_to_many.R` with any missing intermodal-specific helpers. 1558d51
 
 ## Phase 3: Verification & Documentation
-- [ ] Task: Local Testing with Luxembourg Data
-    - [ ] Task: Set up a local MOTIS server using Luxembourg data (as per `private/2026-01-27-one-to-many-pt.R`).
-    - [ ] Task: Verify `motis_one_to_many_intermodal` with both `engine = 'api'` and `engine = 'batch'`.
-    - [ ] Task: Verify parallel execution with `backend = 'httr2'` and `backend = 'mirai'`.
-- [ ] Task: Create Comprehensive Tests
-    - [ ] Task: Add `tests/testthat/test-motis_one_to_many_intermodal.R`.
-    - [ ] Task: Ensure existing `tests/testthat/test-motis_one_to_many.R` and related tests still pass.
+- [x] Task: Local Testing with Luxembourg Data 31a52f3
+    - [x] Task: Set up a local MOTIS server using Luxembourg data (as per `private/2026-01-27-one-to-many-pt.R`). 31a52f3
+    - [x] Task: Verify `motis_one_to_many_intermodal` with both `engine = 'api'` and `engine = 'batch'`. 31a52f3
+    - [x] Task: Verify parallel execution with `backend = 'httr2'` and `backend = 'mirai'`. 31a52f3
+- [x] Task: Create Comprehensive Tests 31a52f3
+    - [x] Task: Add `tests/testthat/test-motis_one_to_many_intermodal.R`. 31a52f3
+    - [x] Task: Ensure existing `tests/testthat/test-motis_one_to_many.R` and related tests still pass. 31a52f3
