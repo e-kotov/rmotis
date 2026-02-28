@@ -66,10 +66,11 @@ origins, applying spatial sorting and filtering for improved performance.</p>
 <span>  many_id_col <span class="op">=</span> <span class="st">"id"</span>,</span>
 <span>  withDistance <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  <span class="va">...</span>,</span>
-<span>  spatial_filter <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  spatial_filter_km <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  spatial_sort <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  progress <span class="op">=</span> <span class="cn">TRUE</span>,</span>
-<span>  api_endpoint <span class="op">=</span> <span class="st">"/api/v1/one-to-many"</span></span>
+<span>  api_endpoint <span class="op">=</span> <span class="st">"/api/v1/one-to-many"</span>,</span>
+<span>  duration_key <span class="op">=</span> <span class="st">"max"</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -124,10 +125,11 @@ Defaults to <code>FALSE</code>.</p></dd>
 <dd><p>Additional API parameters passed to the MOTIS one-to-many endpoint.</p></dd>
 
 
-<dt id="arg-spatial-filter">spatial_filter<a class="anchor" aria-label="anchor" href="#arg-spatial-filter"></a></dt>
-<dd><p>Logical. If <code>TRUE</code> (default), pre-filter destinations
-per origin to a bounding box based on <code>max</code> travel time and typical mode
-speed. Reduces match memory and I/O for unreachable destinations.</p></dd>
+<dt id="arg-spatial-filter-km">spatial_filter_km<a class="anchor" aria-label="anchor" href="#arg-spatial-filter-km"></a></dt>
+<dd><p>Numeric. Optional straight-line distance threshold
+(in kilometers). If provided, destinations further than this distance from
+an origin will be excluded from the batch query for that origin. Reduces
+query file size and server processing load.</p></dd>
 
 
 <dt id="arg-spatial-sort">spatial_sort<a class="anchor" aria-label="anchor" href="#arg-spatial-sort"></a></dt>
@@ -143,6 +145,11 @@ processing the batch file.</p></dd>
 <dt id="arg-api-endpoint">api_endpoint<a class="anchor" aria-label="anchor" href="#arg-api-endpoint"></a></dt>
 <dd><p>API endpoint path. Defaults to <code>"/api/v1/one-to-many"</code>.</p></dd>
 
+
+<dt id="arg-duration-key">duration_key<a class="anchor" aria-label="anchor" href="#arg-duration-key"></a></dt>
+<dd><p>The name of the duration parameter in the query.
+Defaults to <code>"max"</code>.</p></dd>
+
 </dl></div>
     <div id="value">
     <h2>Value</h2>
@@ -155,7 +162,7 @@ processing the batch file.</p></dd>
 
 
 <p>This function is a convenience wrapper that:</p><ol><li><p>Sorts origins by latitude (<code>spatial_sort = TRUE</code>)</p></li>
-<li><p>For each origin:</p><ul><li><p>Filters destinations to a bounding box (<code>spatial_filter = TRUE</code>)</p></li>
+<li><p>For each origin:</p><ul><li><p>Filters destinations to a bounding box (<code>spatial_filter_km</code>)</p></li>
 <li><p>Calls <code><a href="motis_one_to_many_generate_batch.html">motis_one_to_many_generate_batch()</a></code> with <code>append = TRUE</code></p></li>
 </ul></li>
 <li><p>Returns file metadata</p></li>
@@ -167,7 +174,7 @@ processing the batch file.</p></dd>
 <ul><li><p><strong>Spatial sort</strong>: Origins are sorted by latitude before iteration. This
 improves MOTIS graph cache hits when processing the batch file sequentially.</p></li>
 <li><p><strong>Spatial filter</strong>: For each origin, destinations are filtered to a
-bounding box based on <code>max</code> travel time, mode speed, and a 20% buffer.
+bounding box based on <code>spatial_filter_km</code> and a 5% buffer.
 This reduces unnecessary map-matching attempts and response I/O.</p></li>
 </ul></div>
     <div id="see-also">

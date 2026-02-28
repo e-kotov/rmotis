@@ -70,7 +70,7 @@ This function is now a wrapper around motis_one_to_many() with engine = "batch".
 <span>  echo <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  output_dir <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/tempfile.html" class="external-link">tempdir</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  keep_files <span class="op">=</span> <span class="cn">FALSE</span>,</span>
-<span>  spatial_filter <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  spatial_filter_km <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  spatial_sort <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  split <span class="op">=</span> <span class="fl">1L</span>,</span>
 <span>  eol <span class="op">=</span> <span class="cn">NULL</span></span>
@@ -158,8 +158,8 @@ Mapped to <code>temp_dir</code> in the new interface.</p></dd>
 <dd><p>Logical. Keep temporary files? Defaults to <code>FALSE</code>.</p></dd>
 
 
-<dt id="arg-spatial-filter">spatial_filter<a class="anchor" aria-label="anchor" href="#arg-spatial-filter"></a></dt>
-<dd><p>Logical. Pre-filter destinations per origin.</p></dd>
+<dt id="arg-spatial-filter-km">spatial_filter_km<a class="anchor" aria-label="anchor" href="#arg-spatial-filter-km"></a></dt>
+<dd><p>Numeric. Optional straight-line distance threshold.</p></dd>
 
 
 <dt id="arg-spatial-sort">spatial_sort<a class="anchor" aria-label="anchor" href="#arg-spatial-sort"></a></dt>

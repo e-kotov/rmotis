@@ -66,7 +66,10 @@ the MOTIS API or the MOTIS CLI batch engine.</p>
 <span>  max <span class="op">=</span> <span class="fl">7200</span>,</span>
 <span>  maxMatchingDistance <span class="op">=</span> <span class="fl">1000</span>,</span>
 <span>  withDistance <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  spatial_filter_km <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  <span class="va">...</span>,</span>
+<span>  spatial_filter <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  max_speed_kmh <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  engine <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"api"</span>, <span class="st">"batch"</span><span class="op">)</span>,</span>
 <span>  output <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"data.frame"</span>, <span class="st">"raw_list"</span><span class="op">)</span>,</span>
 <span>  parallel <span class="op">=</span> <span class="cn">TRUE</span>,</span>
@@ -129,6 +132,14 @@ the point in the output. Defaults to <code>"id"</code>.</p></dd>
 Defaults to <code>FALSE</code>.</p></dd>
 
 
+<dt id="arg-spatial-filter-km">spatial_filter_km<a class="anchor" aria-label="anchor" href="#arg-spatial-filter-km"></a></dt>
+<dd><p>Numeric. Optional straight-line distance threshold
+(in kilometers). If provided, destinations further than this distance from
+an origin will be excluded from the MOTIS request for that origin. This
+is highly recommended for very large destination sets to reduce server
+load and network traffic.</p></dd>
+
+
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
 <dd><p>Arguments passed on to <code><a href="https://rdrr.io/pkg/motis.client/man/mc_oneToMany.html" class="external-link">motis.client::mc_oneToMany</a></code></p><dl><dt><code>elevationCosts</code></dt>
 <dd><p>Optional. Default is <code>NONE</code>.</p>
@@ -180,6 +191,10 @@ Increasing the maximum travel time for these segments may resolve this issue.</p
 
 
 </dl></dd>
+
+
+<dt id="arg-spatial-filter-max-speed-kmh">spatial_filter, max_speed_kmh<a class="anchor" aria-label="anchor" href="#arg-spatial-filter-max-speed-kmh"></a></dt>
+<dd><p>Deprecated. Use <code>spatial_filter_km</code> instead.</p></dd>
 
 
 <dt id="arg-engine">engine<a class="anchor" aria-label="anchor" href="#arg-engine"></a></dt>
