@@ -181,7 +181,7 @@ motis_install <- function(
   tmp_extract_dir <- tempfile()
   dir.create(tmp_extract_dir)
   on.exit(unlink(tmp_extract_dir, recursive = TRUE), add = TRUE)
-  if (!quiet) {
+  if (!.is_quiet(quiet)) {
     message("Extracting files...")
   }
 
@@ -197,7 +197,7 @@ motis_install <- function(
     "\\.(tar\\.bz2|tar\\.gz|tar\\.xz|tgz)$", extracted_items, value = TRUE
   )
   if (length(nested_tar) == 1 && length(extracted_items) == 1) {
-    if (!quiet) message("Extracting nested archive...")
+    if (!.is_quiet(quiet)) message("Extracting nested archive...")
     utils::untar(nested_tar, exdir = tmp_extract_dir)
     unlink(nested_tar)
   }
@@ -224,7 +224,7 @@ motis_install <- function(
     all.files = TRUE,
     no.. = TRUE
   )
-  if (!quiet) {
+  if (!.is_quiet(quiet)) {
     message("Installing MOTIS to ", dest_dir)
   }
   file.copy(
@@ -236,7 +236,7 @@ motis_install <- function(
 
   # --- 6. Set permissions and update PATH ---
   if (.Platform$OS.type != "windows") {
-    if (!quiet) {
+    if (!.is_quiet(quiet)) {
       message("Setting executable permissions...")
     }
     Sys.chmod(motis_exe, mode = "0755")
@@ -244,7 +244,7 @@ motis_install <- function(
 
   # --- 7. Verify the binary is executable ---
   version_check <- tryCatch(
-    processx::run(motis_exe, "--version", error_on_status = FALSE),
+    processx::run(motis_exe, "--version", error_on_status = FALSE, stdin = "|"),
     error = function(e) NULL
   )
   if (is.null(version_check) || version_check$status != 0) {
@@ -328,7 +328,7 @@ motis_uninstall <- function(location = "cache", path = NULL, quiet = FALSE) {
   message(dir_to_remove)
 
   proceed <- FALSE
-  if (interactive() && !quiet) {
+  if (interactive() && !.is_quiet(quiet)) {
     ans <- utils::askYesNo("Do you want to proceed?", default = FALSE)
     if (isTRUE(ans)) proceed <- TRUE
   } else {

@@ -118,7 +118,7 @@
   tryCatch(ps::ps_is_running(ps::ps_handle(as.integer(pid))), error = function(e) FALSE)
 }
 
-.motis_register <- function(proc, port, work_dir) {
+.motis_register <- function(proc, port, work_dir, config_path = NULL) {
   pid <- proc$get_pid()
   id <- sprintf("motis-%d-%d-%s", pid, port, format(Sys.time(), "%Y%m%d%H%M%S"))
   
@@ -127,6 +127,7 @@
     pid = pid,
     port = as.integer(port),
     work_dir = work_dir,
+    config_path = config_path,
     started_at = format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ"),
     proc = proc
   )

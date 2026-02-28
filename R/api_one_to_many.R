@@ -161,7 +161,9 @@ motis_one_to_many <- function(
   motis_path = NULL,
   api_endpoint = "/api/v1/one-to-many",
   duration_key = "max",
-  client_fun = motis.client::mc_oneToMany
+  client_fun = motis.client::mc_oneToMany,
+  .one_places = NULL,
+  .many_places = NULL
 ) {
   # --- 1. Argument and Input Validation ---
   if (isTRUE(spatial_filter)) {
@@ -174,11 +176,16 @@ motis_one_to_many <- function(
   engine <- if (is.character(engine)) match.arg(engine) else engine
   output <- if (is.character(output)) match.arg(output) else output
   backend <- if (is.character(backend)) match.arg(backend) else backend
-  
-  # Format inputs to "lat;lon" strings
-  one_places <- .format_place_onemany(one, id_col = one_id_col)
-  many_places_vec <- .format_place_onemany(many, id_col = many_id_col)
-  
+
+  # Validation
+  .motis_validate_args(
+    n_many = NROW(many),
+    max_travel_time = if (duration_key == "maxTravelTime") duration_val else NULL
+  )
+
+  # Format inputs to "lat;lon" strings if not provided
+  one_places <- .one_places %||% .format_place_onemany(one, id_col = one_id_col)
+  many_places_vec <- .many_places %||% .format_place_onemany(many, id_col = many_id_col)
   # Check for deprecated arguments in dots (legacy fallback)
   dots <- list(...)
   if (!is.null(dots$spatial_filter)) {
@@ -992,6 +999,16 @@ motis_one_to_many_read_batch <- function(
     return(paste(place[, 2], place[, 1], sep = ";"))
   }
 
+  if (is.numeric(place) && length(place) == 2) {
+    # Assume c(lat, lon) for vector
+    return(paste(place[1], place[2], sep = ";"))
+  }
+
+  if (is.list(place)) {
+    # Recursively format elements and collapse
+    return(vapply(place, .format_place_onemany, character(1), id_col = id_col))
+  }
+
   if (is.character(place)) return(unname(place))
   stop("Unsupported input type.", call. = FALSE)
 }
@@ -1485,13 +1502,17 @@ motis_one_to_many_read_batch <- function(
         
         n_dests_filtered <- length(filtered_many_ids)
         durations <- rep(NA_real_, n_dests_filtered)
-        distances <- rep(NA_real_, n_dests_filtered) # Initialize distances
+        distances <- rep(NA_real_, n_dests_filtered) 
+        has_distance <- FALSE
         
         if (is.list(parsed) && length(parsed) > 0) {
           for (k in seq_along(parsed)) {
             route <- parsed[[k]]
             if (!is.null(route$duration)) durations[k] <- as.numeric(route$duration)
-            if (!is.null(route$distance)) distances[k] <- as.numeric(route$distance)
+            if (!is.null(route$distance)) {
+              distances[k] <- as.numeric(route$distance)
+              has_distance <- TRUE
+            }
           }
         }
         
@@ -1499,9 +1520,9 @@ motis_one_to_many_read_batch <- function(
           from_id = rep(one_id, n_dests_filtered),
           to_id = filtered_many_ids,
           duration_s = durations,
-          distance_m = distances,
           stringsAsFactors = FALSE
         )
+        if (has_distance) res$distance_m <- distances
         
         if (arrive_by) {
           names(res)[names(res) == "from_id"] <- ".tmp_from"

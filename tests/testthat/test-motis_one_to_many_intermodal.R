@@ -35,7 +35,7 @@ test_that("motis_one_to_many_intermodal works with mocked POST request", {
     # Check body
     body_data <- req$body$data
     expect_equal(body_data$maxTravelTime, 60)
-    expect_equal(body_data$one, "49.599984;6.134208")
+    expect_equal(body_data$one, "49.599984,6.134208")
     
     mock_resp
   }
@@ -60,6 +60,39 @@ test_that("motis_one_to_many_intermodal works with mocked POST request", {
       expect_equal(res$to_id, c("Esch", "Ettelbruck"))
       expect_equal(res$duration_s, c(1800, 2400))
       expect_equal(res$distance_m, c(20000, 35000))
+    },
+    .package = "httr2"
+  )
+})
+
+test_that("motis_one_to_many_intermodal regression: distance_m is omitted when not returned", {
+  origins <- data.frame(id = "Lux", lat = 49.6, lon = 6.1)
+  dests <- data.frame(id = "Esch", lat = 49.5, lon = 6.0)
+  
+  # Response WITHOUT distance
+  mock_resp_json <- '[{"duration": 1200}]'
+  mock_resp <- httr2::response(
+    status_code = 200,
+    headers = list(`Content-Type` = "application/json"),
+    body = charToRaw(mock_resp_json)
+  )
+  
+  mock_perform <- function(req, ...) {
+    # Verify comma format (Wiring Fix Regression)
+    expect_match(req$body$data$one, "49.6,6.1")
+    mock_resp
+  }
+  
+  testthat::with_mocked_bindings(
+    req_perform = mock_perform,
+    code = {
+      res <- motis_one_to_many_intermodal(
+        one = origins, many = dests,
+        parallel = FALSE, .server = "http://motis.fake"
+      )
+      
+      expect_false("distance_m" %in% names(res), info = "distance_m column should not be present if not returned by server")
+      expect_true("duration_s" %in% names(res))
     },
     .package = "httr2"
   )

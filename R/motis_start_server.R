@@ -71,7 +71,8 @@ motis_start_server <- function(
     args = c("server", paste0("--data=", data_dir)),
     wd = work_dir,
     stdout = log_stdout,
-    stderr = log_stderr
+    stderr = log_stderr,
+    stdin = "|"
   )
 
   # Grace period check
@@ -108,7 +109,7 @@ motis_start_server <- function(
   }
 
   # 4. Register
-  id <- .motis_register(server_process, port, work_dir)
+  id <- .motis_register(server_process, port, work_dir, config_path = config_in_data)
 
   message(
     "\u2705 MOTIS server started on http://127.0.0.1:",
