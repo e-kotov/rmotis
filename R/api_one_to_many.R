@@ -731,13 +731,23 @@ motis_one_to_many_read_batch <- function(
       origin_lat <- one_coords[i, "lat"]
       origin_lon <- one_coords[i, "lon"]
       
-      # Professional degree conversion
-      radii <- .km_to_deg(max_radius_km, origin_lat)
+      # Professional degree conversion (returns offsets + scaling factors)
+      radii <- .km_to_deg(spatial_filter_km, origin_lat)
       
-      # Bounding box filter
+      # Step 1: Bounding box filter (Fast pruning)
       lat_diff <- abs(many_coords[, "lat"] - origin_lat)
       lon_diff <- abs(many_coords[, "lon"] - origin_lon)
-      keep_idx <- which(lat_diff <= radii$lat & lon_diff <= radii$lon)
+      cand_idx <- which(lat_diff <= radii$lat & lon_diff <= radii$lon)
+      
+      if (length(cand_idx) == 0) next
+      
+      # Step 2: Euclidean refinement (Circular)
+      dx <- (many_coords[cand_idx, "lon"] - origin_lon) * radii$deg_lon_km
+      dy <- (many_coords[cand_idx, "lat"] - origin_lat) * radii$deg_lat_km
+      
+      # We use a 1% buffer squared for robustness (matches radii$lat/lon buffer)
+      r2 <- (spatial_filter_km * 1.01)^2
+      keep_idx <- cand_idx[which(dx^2 + dy^2 <= r2)]
       
       if (length(keep_idx) == 0) next
       
@@ -1351,14 +1361,27 @@ motis_one_to_many_read_batch <- function(
         
         # Professional degree conversion
         .km_to_deg <- function(radius_km, lat) {
-          # Use a conservative radius (polar radius ~6357km) 
-          # to ensure we are more inclusive at the equator.
-          R <- 6357
-          lat_deg <- (radius_km / R) * (180 / pi)
-          lat_rad <- abs(lat) * (pi / 180)
-          if (lat_rad > 1.55) lat_rad <- 1.55 # ~89 degrees
-          lon_deg <- lat_deg / cos(lat_rad)
-          list(lat = lat_deg, lon = lon_deg)
+          # WGS84 Ellipsoid Constants
+          a <- 6378.137    # Semi-major axis (Equatorial radius)
+          b <- 6356.752314 # Semi-minor axis (Polar radius)
+          lat_rad <- lat * (pi / 180)
+          e2 <- (a^2 - b^2) / a^2
+          N <- a / sqrt(1 - e2 * (sin(lat_rad)^2))
+          deg_lat_km <- (pi / 180) * (a * (1 - e2)) / ((1 - e2 * (sin(lat_rad)^2))^(1.5))
+          deg_lon_km <- (pi / 180) * N * cos(lat_rad)
+          
+          # Add a 1% safety buffer to offsets only to account for ellipsoidal chord distortion
+          # This ensures the box always contains the circle.
+          r_buf <- radius_km * 1.01
+          lat_deg <- r_buf / deg_lat_km
+          lon_deg <- if (abs(lat) > 89.9) 360 else r_buf / deg_lon_km
+          
+          list(
+            lat = lat_deg, 
+            lon = lon_deg, 
+            deg_lat_km = deg_lat_km, 
+            deg_lon_km = deg_lon_km
+          )
         }
         
         # Spatial Filter Logic (Same as before)
@@ -1373,13 +1396,32 @@ motis_one_to_many_read_batch <- function(
            origin_lat <- parts[1]
            origin_lon <- parts[2]
            
-           # Professional degree conversion
+           # Professional degree conversion (returns offsets + scaling factors)
            radii <- .km_to_deg(max_radius_km, origin_lat)
            
+           # Step 1: Bounding box filter (Fast pruning)
            lat_diff <- abs(many_coords[, "lat"] - origin_lat)
            lon_diff <- abs(many_coords[, "lon"] - origin_lon)
-           keep_idx <- which(lat_diff <= radii$lat & lon_diff <= radii$lon)
+           cand_idx <- which(lat_diff <= radii$lat & lon_diff <= radii$lon)
            
+           if (length(cand_idx) == 0) {
+              # Return empty result
+              return(data.frame(
+                from_id = if (arrive_by) character(0) else one_id,
+                to_id = if (arrive_by) one_id else character(0),
+                duration_s = numeric(0), distance_m = numeric(0),
+                stringsAsFactors = FALSE
+              ))
+           }
+
+           # Step 2: Euclidean refinement (Circular)
+           dx <- (many_coords[cand_idx, "lon"] - origin_lon) * radii$deg_lon_km
+           dy <- (many_coords[cand_idx, "lat"] - origin_lat) * radii$deg_lat_km
+           
+           # We use a 1% buffer squared for robustness (matches radii$lat/lon buffer)
+           r2 <- (max_radius_km * 1.01)^2
+           keep_idx <- cand_idx[which(dx^2 + dy^2 <= r2)]
+
            if (length(keep_idx) == 0) {
               # Return empty result
               return(data.frame(
@@ -1559,13 +1601,28 @@ motis_one_to_many_read_batch <- function(
       origin_lat <- one_coords[idx, "lat"]
       origin_lon <- one_coords[idx, "lon"]
       
-      # Professional degree conversion
+      # Professional degree conversion (returns offsets + scaling factors)
       radii <- .km_to_deg(max_radius_km, origin_lat)
       
+      # Step 1: Bounding box filter (Fast pruning)
       lat_diff <- abs(many_coords[, "lat"] - origin_lat)
       lon_diff <- abs(many_coords[, "lon"] - origin_lon)
-      keep_idx <- which(lat_diff <= radii$lat & lon_diff <= radii$lon)
+      cand_idx <- which(lat_diff <= radii$lat & lon_diff <= radii$lon)
       
+      if (length(cand_idx) == 0) {
+        origin_metadata[[i]] <- list(origin_id = origin_id, dest_ids = character(0), request_idx = NA_integer_)
+        requests[[i]] <- NULL
+        next
+      }
+
+      # Step 2: Euclidean refinement (Circular)
+      dx <- (many_coords[cand_idx, "lon"] - origin_lon) * radii$deg_lon_km
+      dy <- (many_coords[cand_idx, "lat"] - origin_lat) * radii$deg_lat_km
+      
+      # We use a 1% buffer squared for robustness (matches radii$lat/lon buffer)
+      r2 <- (max_radius_km * 1.01)^2
+      keep_idx <- cand_idx[which(dx^2 + dy^2 <= r2)]
+
       if (length(keep_idx) == 0) {
         origin_metadata[[i]] <- list(origin_id = origin_id, dest_ids = character(0), request_idx = NA_integer_)
         requests[[i]] <- NULL

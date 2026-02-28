@@ -816,14 +816,9 @@ debug_msg <- function(...) {
 #'
 #' @param radius_km Numeric. The search radius in kilometers.
 #' @param lat Numeric. The latitude of the origin point.
-#' @return A list with `lat` and `lon` degree offsets.
+#' @return A list with `lat` and `lon` degree offsets, and `deg_lat_km`, `deg_lon_km` scaling factors.
 #' @noRd
 .km_to_deg <- function(radius_km, lat) {
-  # Add a 1% safety buffer to account for the fact that a 
-  # "straight line" in a bounding box is a chord on a curved ellipsoid.
-  # 1% is sufficient even for large 2000km radii and extreme latitudes.
-  radius_km <- radius_km * 1.01
-  
   # WGS84 Ellipsoid Constants
   a <- 6378.137    # Semi-major axis (Equatorial radius)
   b <- 6356.752314 # Semi-minor axis (Polar radius)
@@ -842,15 +837,24 @@ debug_msg <- function(...) {
   deg_lat_km <- (pi / 180) * (a * (1 - e2)) / ((1 - e2 * (sin(lat_rad)^2))^(1.5))
   deg_lon_km <- (pi / 180) * N * cos(lat_rad)
   
+  # Add a 1% safety buffer to offsets only to account for ellipsoidal chord distortion
+  # This ensures the box always contains the circle.
+  r_buf <- radius_km * 1.01
+  
   # Degrees for the given radius
-  lat_deg <- radius_km / deg_lat_km
+  lat_deg <- r_buf / deg_lat_km
   
   # Handle longitude near poles
   if (abs(lat) > 89.9) {
     lon_deg <- 360 # Include everything at the pole
   } else {
-    lon_deg <- radius_km / deg_lon_km
+    lon_deg <- r_buf / deg_lon_km
   }
   
-  list(lat = lat_deg, lon = lon_deg)
+  list(
+    lat = lat_deg, 
+    lon = lon_deg, 
+    deg_lat_km = deg_lat_km, 
+    deg_lon_km = deg_lon_km
+  )
 }
