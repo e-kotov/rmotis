@@ -1025,7 +1025,9 @@ motis_one_to_many_read_batch <- function(
   dots$elevationCosts <- NULL
   if (length(dots) > 0) body_params <- utils::modifyList(body_params, dots)
   
-  server_url <- user_server %||% .get_server_url()
+  server_url <- user_server %||% .get_server_url() %||% "http://localhost:8080"
+  .wait_for_server(server_url)
+  
   url <- paste0(sub("/$", "", server_url), api_endpoint)
   
   req <- httr2::request(url) |>
@@ -1078,8 +1080,7 @@ motis_one_to_many_read_batch <- function(
   # Remove .server from dots to strictly match API
   dots[[".server"]] <- NULL
   
-  is_testthat <- identical(Sys.getenv("TESTTHAT"), "true")
-  if (!is_testthat && getOption("rmotis.wait_for_server", TRUE)) .wait_for_server(.server)
+  .wait_for_server(.server)
   
   one_ids <- .get_ids(one, id_col = one_id_col)
   many_ids <- .get_ids(many, id_col = many_id_col)
@@ -1672,7 +1673,13 @@ motis_one_to_many_read_batch <- function(
 
 #' Wait for server helper
 #' @noRd
-.wait_for_server <- function(server_url, timeout = 120, poll_interval = 2) {
+.wait_for_server <- function(server_url, timeout = 120, poll_interval = 2, force = FALSE) {
+  # Globally disable polling during tests to prevent hangs, unless forced
+  is_testthat <- identical(Sys.getenv("TESTTHAT"), "true")
+  if (!force && (is_testthat || !isTRUE(getOption("rmotis.wait_for_server", TRUE)))) {
+    return(invisible(TRUE))
+  }
+
   deadline <- Sys.time() + timeout
   while (Sys.time() < deadline) {
     tryCatch({

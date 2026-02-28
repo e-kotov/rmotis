@@ -22,7 +22,7 @@ test_that("CSV output works via unified function", {
   on.exit(unlink(csv_file), add = TRUE)
   
   httr2::with_mocked_responses(mock_api_fn, {
-    motis_one_to_many(one, many, engine = "api", .server = "http://localhost:8080", 
+    motis_one_to_many(one, many, engine = "api", .server = "http://motis.fake", 
                       output_path = csv_file, parallel = FALSE, spatial_filter = FALSE)
   })
   
@@ -40,7 +40,7 @@ test_that("Partitioned Parquet output works", {
   
   httr2::with_mocked_responses(mock_api_fn, {
     # Use batch_size = 1 to force multiple partitions
-    motis_one_to_many(one, many, engine = "api", .server = "http://localhost:8080", 
+    motis_one_to_many(one, many, engine = "api", .server = "http://motis.fake", 
                       output_path = pq_dir, parallel = FALSE, batch_size = 1, spatial_filter = FALSE)
   })
   
@@ -61,7 +61,7 @@ test_that("DuckDB output works", {
   on.exit(unlink(db_file), add = TRUE)
   
   httr2::with_mocked_responses(mock_api_fn, {
-    motis_one_to_many(one, many, engine = "api", .server = "http://localhost:8080", 
+    motis_one_to_many(one, many, engine = "api", .server = "http://motis.fake", 
                       output_path = db_file, parallel = FALSE, spatial_filter = FALSE)
   })
   

@@ -37,7 +37,7 @@ test_that("spatial_filter_km correctly filters destinations (mocked)", {
       spatial_filter_km = 50, # 50km radius
       parallel = FALSE,
       progress = FALSE,
-      .server = "http://localhost:8080"
+      .server = "http://motis.fake"
     )
     
     expect_equal(nrow(res), 1)
@@ -84,7 +84,7 @@ test_that("spatial_filter_km works with intermodal API (mocked)", {
       spatial_filter_km = 10,
       parallel = FALSE,
       progress = FALSE,
-      .server = "http://localhost:8080"
+      .server = "http://motis.fake"
     )
     expect_equal(nrow(res), 1)
   })

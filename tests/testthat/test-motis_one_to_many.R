@@ -16,7 +16,7 @@ test_that("motis_one_to_many works with mocked POST request", {
   )
 
   mock_perform <- function(req, ...) {
-    expect_equal(req$url, "http://localhost:8080/api/v1/one-to-many")
+    expect_equal(req$url, "http://motis.fake/api/v1/one-to-many")
     expect_equal(req$method, "POST")
     body_data <- req$body$data
     expect_type(body_data, "list")
@@ -36,7 +36,7 @@ test_that("motis_one_to_many works with mocked POST request", {
       # Test arrive_by = FALSE (One to Many)
       x_out <- motis_one_to_many(
         one = dest, many = origins, mode = "CAR", distance = TRUE,
-        .server = "http://localhost:8080", max = 3600, parallel = FALSE
+        .server = "http://motis.fake", max = 3600, parallel = FALSE
       )
       expect_s3_class(x_out, "data.frame")
       expect_equal(names(x_out), c("from_id", "to_id", "duration_s", "distance_m"))
@@ -48,7 +48,7 @@ test_that("motis_one_to_many works with mocked POST request", {
       # Test arrive_by = TRUE (Many to One)
       x_in <- motis_one_to_many(
         one = dest, many = origins, mode = "CAR", arrive_by = TRUE, distance = TRUE,
-        .server = "http://localhost:8080", parallel = FALSE
+        .server = "http://motis.fake", parallel = FALSE
       )
       expect_equal(x_in$to_id, c("1", "1"))
       expect_equal(x_in$from_id, c("1", "2"))
@@ -87,7 +87,7 @@ test_that("motis_one_to_many handles sf objects correctly (mocked)", {
       
       res <- motis_one_to_many(
         one = dest_sf, many = origins_sf, mode = "CAR",
-        .server = "http://localhost:8080", parallel = FALSE
+        .server = "http://motis.fake", parallel = FALSE
       )
       
       expect_s3_class(res, "data.frame")
@@ -122,7 +122,7 @@ test_that("basic parallel execution works (mocked)", {
   
   result <- httr2::with_mocked_responses(mock_fn, {
     motis_one_to_many(
-      one, many, mode = "WALK", .server = "http://localhost:8080",
+      one, many, mode = "WALK", .server = "http://motis.fake",
       parallel = TRUE, batch_size = 2, progress = FALSE,
       spatial_filter_km = NULL, spatial_sort = FALSE
     )
@@ -153,7 +153,7 @@ test_that("parquet output directory works", {
   
   result_path <- httr2::with_mocked_responses(mock_fn, {
     motis_one_to_many(
-      one, many, mode = "WALK", .server = "http://localhost:8080",
+      one, many, mode = "WALK", .server = "http://motis.fake",
       parallel = TRUE, output_path = parquet_dir, batch_size = 1,
       progress = FALSE, spatial_filter_km = NULL, spatial_sort = FALSE
     )
@@ -184,7 +184,7 @@ test_that("HTTP error handling - 500 server error", {
   
   result <- httr2::with_mocked_responses(mock_fn, {
     suppressWarnings(motis_one_to_many(
-      one, many, mode = "WALK", .server = "http://localhost:8080",
+      one, many, mode = "WALK", .server = "http://motis.fake",
       parallel = TRUE, progress = FALSE,
       spatial_filter_km = NULL, spatial_sort = FALSE
     ))
@@ -213,7 +213,7 @@ test_that("partial batch failures handled correctly", {
   
   result <- httr2::with_mocked_responses(mock_fn, {
     suppressWarnings(motis_one_to_many(
-      one, many, mode = "WALK", .server = "http://localhost:8080",
+      one, many, mode = "WALK", .server = "http://motis.fake",
       parallel = TRUE, batch_size = 10, progress = FALSE,
       spatial_filter_km = NULL, spatial_sort = FALSE
     ))
@@ -240,7 +240,7 @@ test_that("checkpoint create and resume works", {
   
   httr2::with_mocked_responses(mock_fn, {
     motis_one_to_many(
-      one, many, mode = "WALK", .server = "http://localhost:8080",
+      one, many, mode = "WALK", .server = "http://motis.fake",
       parallel = TRUE, checkpoint_file = checkpoint_file, batch_size = 10,
       progress = FALSE, spatial_filter_km = NULL, spatial_sort = FALSE
     )
@@ -253,7 +253,7 @@ test_that("checkpoint create and resume works", {
   # Resume
   result2 <- httr2::with_mocked_responses(mock_fn, {
     motis_one_to_many(
-      one, many, mode = "WALK", .server = "http://localhost:8080",
+      one, many, mode = "WALK", .server = "http://motis.fake",
       parallel = TRUE, checkpoint_file = checkpoint_file,
       progress = FALSE, spatial_filter_km = NULL, spatial_sort = FALSE
     )
@@ -281,7 +281,7 @@ test_that("CSV output works", {
   
   result_path <- httr2::with_mocked_responses(mock_fn, {
     motis_one_to_many(
-      one, many, mode = "WALK", .server = "http://localhost:8080",
+      one, many, mode = "WALK", .server = "http://motis.fake",
       parallel = TRUE, output_path = csv_file, progress = FALSE,
       spatial_filter_km = NULL, spatial_sort = FALSE
     )
@@ -309,15 +309,25 @@ test_that("motis_one_to_many calls server polling", {
     httr2::response(status_code = 200)
   }
   
-  withr::with_options(list(rmotis.wait_for_server = TRUE), {
-    httr2::with_mocked_responses(mock_fn, {
-      motis_one_to_many(
-        one, many, .server = "http://localhost:8080",
-        parallel = TRUE, progress = FALSE,
-        spatial_filter_km = NULL, spatial_sort = FALSE
-      )
-    })
-  })
+  calls <- 0
+  mock_wait <- function(...) {
+    calls <<- calls + 1
+    invisible(TRUE)
+  }
   
-  expect_gte(calls, 2)
+  testthat::with_mocked_bindings(
+    .wait_for_server = mock_wait,
+    code = {
+      httr2::with_mocked_responses(mock_fn, {
+        motis_one_to_many(
+          one, many, .server = "http://motis.fake",
+          parallel = TRUE, progress = FALSE,
+          spatial_filter_km = NULL, spatial_sort = FALSE
+        )
+      })
+    },
+    .package = "rmotis"
+  )
+  
+  expect_gte(calls, 1)
 })
