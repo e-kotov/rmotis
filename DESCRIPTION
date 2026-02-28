@@ -4,13 +4,14 @@ Version: 0.0.0.9000
 Authors@R: c(
     person("Egor", "Kotov", , "kotov.egor@gmail.com", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0001-6690-5345")),
-    person("Dmitry", "Boyko", , , role = "aut",
+    person("Dmitry", "Boyko", role = "aut",
            comment = c(ORCID = "0000-0001-5640-6788"))
   )
 Description: Client for Modular Open Transportation Information System
     ('MOTIS').
 License: MIT + file LICENSE
-URL: https://github.com/e-kotov/rmotis, https://www.ekotov.pro/rmotis/
+URL: https://github.com/e-kotov/rmotis, https://www.ekotov.pro/rmotis/,
+    http://www.ekotov.pro/rmotis/
 BugReports: https://github.com/e-kotov/rmotis/issues
 Depends: 
     R (>= 4.1.0)
@@ -34,8 +35,8 @@ Suggests:
     arrow,
     data.table,
     DBI,
-    duckdb,
     DT,
+    duckdb,
     jsonlite,
     mapgl,
     mirai,
@@ -46,8 +47,8 @@ Suggests:
     testthat (>= 3.0.0),
     withr
 Remotes:
-    SymbolixAU/googlePolylines,
-    e-kotov/motis.client
+    e-kotov/motis.client,
+    SymbolixAU/googlePolylines
 Config/testthat/edition: 3
 Encoding: UTF-8
 Language: en

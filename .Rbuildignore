@@ -16,3 +16,6 @@
 ^local-testing$
 ^private$
 ^conductor$
+^_pkgdown\.yml$
+^docs$
+^pkgdown$
