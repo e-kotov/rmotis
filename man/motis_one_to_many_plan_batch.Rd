@@ -61,6 +61,9 @@ processing the batch file.}
 \item{progress}{Logical. If \code{TRUE} (default), display progress messages.}
 
 \item{api_endpoint}{API endpoint path. Defaults to \code{"/api/v1/one-to-many"}.}
+
+\item{duration_key}{The name of the duration parameter in the query.
+Defaults to \code{"max"}.}
 }
 \value{
 Invisibly returns a list with:

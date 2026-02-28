@@ -101,6 +101,8 @@ Allowed values: NONE, LOW, HIGH.}
     \item{\code{.paginate}}{A logical, character string, or function to enable pagination. If TRUE (or "link_header"), uses Link headers. Other options: "page_param", "cursor_param", or a custom function. See \code{oa3_paginate()}.}
   }}
 
+\item{spatial_filter, max_speed_kmh}{Deprecated. Use \code{spatial_filter_km} instead.}
+
 \item{engine}{Execution engine:
 \itemize{
 \item \code{"api"} (default): Uses the MOTIS POST API. Supports parallel backends.

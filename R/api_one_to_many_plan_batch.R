@@ -27,6 +27,8 @@
 #'   processing the batch file.
 #' @param progress Logical. If `TRUE` (default), display progress messages.
 #' @param api_endpoint API endpoint path. Defaults to `"/api/v1/one-to-many"`.
+#' @param duration_key The name of the duration parameter in the query.
+#'   Defaults to `"max"`.
 #'
 #' @return Invisibly returns a list with:
 #'   - `file`: Path to the output file

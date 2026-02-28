@@ -57,6 +57,9 @@ destination identifiers in the metadata file. Defaults to \code{"id"}.}
 
 \item{api_endpoint}{The API path. Defaults to \code{"/api/v1/one-to-many"}.}
 
+\item{duration_key}{The name of the duration parameter in the query.
+Defaults to \code{"max"}.}
+
 \item{quiet}{Logical. If \code{TRUE}, suppress status messages.}
 }
 \value{

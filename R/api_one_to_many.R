@@ -51,6 +51,7 @@
 #'   Typically, `"\n"` is required for MOTIS batch processing.
 #' @param motis_path Path to the directory containing the MOTIS binary, or
 #'   `NULL` to use the system PATH.
+#' @param spatial_filter,max_speed_kmh Deprecated. Use `spatial_filter_km` instead.
 #' @inheritDotParams motis.client::mc_oneToMany -one -many -mode -arriveBy -max -maxMatchingDistance -withDistance -.endpoint
 #'
 #' @return Depending on the `output` parameter and `output_path`, a `data.frame`, 
@@ -355,6 +356,8 @@ motis_one_to_many_batch <- function(
 #'   `.meta` sidecar.
 #' @param quiet Logical. If `TRUE`, suppress status messages.
 #' @param api_endpoint The API path. Defaults to `"/api/v1/one-to-many"`.
+#' @param duration_key The name of the duration parameter in the query.
+#'   Defaults to `"max"`.
 #'
 #' @return Invisibly returns the number of queries written (always 1).
 #' @export

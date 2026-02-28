@@ -52,6 +52,7 @@
 #'   `"\r\n"` for CRLF).
 #' @param motis_path Path to the directory containing the MOTIS binary, or
 #'   `NULL` to use the system PATH.
+#' @param spatial_filter,max_speed_kmh Deprecated. Use `spatial_filter_km` instead.
 #' @inheritDotParams motis.client::mc_oneToManyIntermodalPost -one -many -time -arriveBy -maxTravelTime -maxMatchingDistance -.endpoint
 #'
 #' @return Depending on the `output` parameter and `output_path`, a `data.frame`, 
