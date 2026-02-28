@@ -18,6 +18,7 @@ motis_one_to_many_generate_batch(
   ...,
   append = FALSE,
   api_endpoint = "/api/v1/one-to-many",
+  duration_key = "max",
   quiet = FALSE
 )
 }

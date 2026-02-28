@@ -19,7 +19,8 @@ motis_one_to_many_plan_batch(
   spatial_filter_km = NULL,
   spatial_sort = TRUE,
   progress = TRUE,
-  api_endpoint = "/api/v1/one-to-many"
+  api_endpoint = "/api/v1/one-to-many",
+  duration_key = "max"
 )
 }
 \arguments{
