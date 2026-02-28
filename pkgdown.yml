@@ -2,4 +2,7 @@ pandoc: 3.1.11
 pkgdown: 2.2.0
 pkgdown_sha: ~
 articles: {}
-last_built: 2026-02-28T17:09Z
+last_built: 2026-02-28T18:21Z
+urls:
+  reference: https://www.ekotov.pro/rmotis/reference
+  article: https://www.ekotov.pro/rmotis/articles
