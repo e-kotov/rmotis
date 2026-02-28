@@ -14,7 +14,10 @@ motis_one_to_many(
   max = 7200,
   maxMatchingDistance = 1000,
   withDistance = FALSE,
+  spatial_filter_km = NULL,
   ...,
+  spatial_filter = NULL,
+  max_speed_kmh = NULL,
   engine = c("api", "batch"),
   output = c("data.frame", "raw_list"),
   parallel = TRUE,
@@ -54,6 +57,12 @@ the point in the output. Defaults to \code{"id"}.}
 
 \item{withDistance}{Logical. Include distance in the output?
 Defaults to \code{FALSE}.}
+
+\item{spatial_filter_km}{Numeric. Optional straight-line distance threshold
+(in kilometers). If provided, destinations further than this distance from
+an origin will be excluded from the MOTIS request for that origin. This
+is highly recommended for very large destination sets to reduce server
+load and network traffic.}
 
 \item{...}{
   Arguments passed on to \code{\link[motis.client:mc_oneToMany]{motis.client::mc_oneToMany}}

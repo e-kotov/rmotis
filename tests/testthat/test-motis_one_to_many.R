@@ -124,7 +124,7 @@ test_that("basic parallel execution works (mocked)", {
     motis_one_to_many(
       one, many, mode = "WALK", .server = "http://localhost:8080",
       parallel = TRUE, batch_size = 2, progress = FALSE,
-      spatial_filter = FALSE, spatial_sort = FALSE
+      spatial_filter_km = NULL, spatial_sort = FALSE
     )
   })
   
@@ -155,7 +155,7 @@ test_that("parquet output directory works", {
     motis_one_to_many(
       one, many, mode = "WALK", .server = "http://localhost:8080",
       parallel = TRUE, output_path = parquet_dir, batch_size = 1,
-      progress = FALSE, spatial_filter = FALSE, spatial_sort = FALSE
+      progress = FALSE, spatial_filter_km = NULL, spatial_sort = FALSE
     )
   })
   
@@ -186,7 +186,7 @@ test_that("HTTP error handling - 500 server error", {
     suppressWarnings(motis_one_to_many(
       one, many, mode = "WALK", .server = "http://localhost:8080",
       parallel = TRUE, progress = FALSE,
-      spatial_filter = FALSE, spatial_sort = FALSE
+      spatial_filter_km = NULL, spatial_sort = FALSE
     ))
   })
   
@@ -215,7 +215,7 @@ test_that("partial batch failures handled correctly", {
     suppressWarnings(motis_one_to_many(
       one, many, mode = "WALK", .server = "http://localhost:8080",
       parallel = TRUE, batch_size = 10, progress = FALSE,
-      spatial_filter = FALSE, spatial_sort = FALSE
+      spatial_filter_km = NULL, spatial_sort = FALSE
     ))
   })
   
@@ -242,7 +242,7 @@ test_that("checkpoint create and resume works", {
     motis_one_to_many(
       one, many, mode = "WALK", .server = "http://localhost:8080",
       parallel = TRUE, checkpoint_file = checkpoint_file, batch_size = 10,
-      progress = FALSE, spatial_filter = FALSE, spatial_sort = FALSE
+      progress = FALSE, spatial_filter_km = NULL, spatial_sort = FALSE
     )
   })
   
@@ -255,7 +255,7 @@ test_that("checkpoint create and resume works", {
     motis_one_to_many(
       one, many, mode = "WALK", .server = "http://localhost:8080",
       parallel = TRUE, checkpoint_file = checkpoint_file,
-      progress = FALSE, spatial_filter = FALSE, spatial_sort = FALSE
+      progress = FALSE, spatial_filter_km = NULL, spatial_sort = FALSE
     )
   })
   
@@ -283,7 +283,7 @@ test_that("CSV output works", {
     motis_one_to_many(
       one, many, mode = "WALK", .server = "http://localhost:8080",
       parallel = TRUE, output_path = csv_file, progress = FALSE,
-      spatial_filter = FALSE, spatial_sort = FALSE
+      spatial_filter_km = NULL, spatial_sort = FALSE
     )
   })
   
@@ -314,7 +314,7 @@ test_that("motis_one_to_many calls server polling", {
       motis_one_to_many(
         one, many, .server = "http://localhost:8080",
         parallel = TRUE, progress = FALSE,
-        spatial_filter = FALSE, spatial_sort = FALSE
+        spatial_filter_km = NULL, spatial_sort = FALSE
       )
     })
   })

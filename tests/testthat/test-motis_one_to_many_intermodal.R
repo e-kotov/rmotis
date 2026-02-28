@@ -51,8 +51,7 @@ test_that("motis_one_to_many_intermodal works with mocked POST request", {
         .server = "http://localhost:8080",
         parallel = FALSE,
         progress = FALSE,
-        spatial_filter = FALSE,
-        spatial_sort = FALSE
+        spatial_filter_km = NULL, spatial_sort = FALSE
       )
       
       expect_s3_class(res, "data.frame")
@@ -111,8 +110,7 @@ test_that("motis_one_to_many_intermodal works with batch engine (CLI)", {
         data_dir = ".", 
         motis_path = dummy_bin_dir,
         progress = FALSE,
-        spatial_filter = FALSE,
-        spatial_sort = FALSE
+        spatial_filter_km = NULL, spatial_sort = FALSE
       )
       
       expect_s3_class(res, "data.frame")
@@ -148,8 +146,7 @@ test_that("motis_one_to_many_intermodal works in parallel (mocked)", {
         backend = "httr2",
         batch_size = 1,
         progress = FALSE,
-        spatial_filter = FALSE,
-        spatial_sort = FALSE,
+        spatial_filter_km = NULL, spatial_sort = FALSE,
         .server = "http://localhost:8080"
       )
       
@@ -193,7 +190,7 @@ test_that("motis_one_to_many_intermodal spatial filter works", {
         max_travel_time = 60, # 60 min * 100 km/h = 100 km radius
         parallel = FALSE,
         progress = FALSE,
-        spatial_filter = TRUE,
+        spatial_filter_km = 100,
         spatial_sort = FALSE,
         .server = "http://localhost:8080"
       )

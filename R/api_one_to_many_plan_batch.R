@@ -18,9 +18,10 @@
 #' @param one_id_col Column name for origin IDs. Defaults to `"id"`.
 #' @param many_id_col Column name for destination IDs. Defaults to `"id"`.
 #' @param ... Additional API parameters passed to the MOTIS one-to-many endpoint.
-#' @param spatial_filter Logical. If `TRUE` (default), pre-filter destinations
-#'   per origin to a bounding box based on `max` travel time and typical mode
-#'   speed. Reduces match memory and I/O for unreachable destinations.
+#' @param spatial_filter_km Numeric. Optional straight-line distance threshold
+#'   (in kilometers). If provided, destinations further than this distance from
+#'   an origin will be excluded from the batch query for that origin. Reduces
+#'   query file size and server processing load.
 #' @param spatial_sort Logical. If `TRUE` (default), sort origins by latitude
 #'   before generating queries. Improves MOTIS graph cache locality when
 #'   processing the batch file.
@@ -36,7 +37,7 @@
 #' This function is a convenience wrapper that:
 #' 1. Sorts origins by latitude (`spatial_sort = TRUE`)
 #' 2. For each origin:
-#'    - Filters destinations to a bounding box (`spatial_filter = TRUE`)
+#'    - Filters destinations to a bounding box (`spatial_filter_km`)
 #'    - Calls [motis_one_to_many_generate_batch()] with `append = TRUE`
 #' 3. Returns file metadata
 #'
@@ -44,7 +45,7 @@
 #' - **Spatial sort**: Origins are sorted by latitude before iteration. This
 #'   improves MOTIS graph cache hits when processing the batch file sequentially.
 #' - **Spatial filter**: For each origin, destinations are filtered to a
-#'   bounding box based on `max` travel time, mode speed, and a 20% buffer.
+#'   bounding box based on `spatial_filter_km` and a 5% buffer.
 #'   This reduces unnecessary map-matching attempts and response I/O.
 #'
 #' @seealso [motis_one_to_many_batch()], [motis_one_to_many_generate_batch()]
@@ -61,7 +62,7 @@ motis_one_to_many_plan_batch <- function(
   many_id_col = "id",
   withDistance = FALSE,
   ...,
-  spatial_filter = TRUE,
+  spatial_filter_km = NULL,
   spatial_sort = TRUE,
   progress = TRUE,
   api_endpoint = "/api/v1/one-to-many"
@@ -87,18 +88,16 @@ motis_one_to_many_plan_batch <- function(
   }
 
   # Prepare spatial filter if enabled
-  if (spatial_filter) {
+  if (!is.null(spatial_filter_km)) {
     many_coords <- .extract_coords(many)
-    # Speed estimates (km/h)
-    max_speed <- switch(mode, WALK = 6, BIKE = 20, CAR = 130)
-    # Max travel distance in km with 20% buffer
-    max_radius_km <- (max * max_speed / 3600) * 1.2
+    # Use 5% buffer for straight-line distance safety
+    max_radius_km <- spatial_filter_km * 1.05
   }
 
   # Iterate over origins
   for (i in seq_len(n_origins)) {
     # Apply spatial filter for this origin if enabled
-    if (spatial_filter) {
+    if (!is.null(spatial_filter_km)) {
       origin_lat <- one_coords[i, "lat"]
       origin_lon <- one_coords[i, "lon"]
 
@@ -136,7 +135,7 @@ motis_one_to_many_plan_batch <- function(
     }
 
     if (progress) {
-      n_dests <- if (spatial_filter) length(keep_idx) else length(many_ids)
+      n_dests <- if (!is.null(spatial_filter_km)) length(keep_idx) else length(many_ids)
       message(sprintf(
         "Origin %d/%d (%.2f%%) - %s destinations",
         i,

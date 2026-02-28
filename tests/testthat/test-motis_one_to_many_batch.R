@@ -111,8 +111,8 @@ test_that("motis_one_to_many_batch respects split parameter", {
         motis_path = dummy_bin_dir,
         output_dir = custom_dir,
         split = 2L,
-        spatial_filter = FALSE,  # Disable to test split behavior
-        spatial_sort = FALSE,    # Disable to focus on split
+        spatial_filter_km = NULL,
+        spatial_sort = FALSE,
         echo = TRUE
       )
   }, type = "message")
@@ -163,7 +163,7 @@ test_that("spatial_sort reorders origins by latitude", {
     output_dir = custom_dir,
     keep_files = TRUE,
     spatial_sort = TRUE,
-    spatial_filter = FALSE,  # Disable filter to test only sort
+    spatial_filter_km = NULL,  # Disable filter to test only sort
     echo = FALSE
   )
   
@@ -208,9 +208,9 @@ test_that("spatial_filter reduces destinations per origin", {
   dir.create(custom_dir)
   on.exit(unlink(custom_dir, recursive = TRUE), add = TRUE)
   
-  # Use default max = 7200s (2 hours), WALK mode (6 km/h)
-  # Max radius ≈ (7200 * 6 / 3600) * 1.2 / 111 ≈ 0.13 degrees
-  # Tokyo and London should be filtered out
+  # Use fixed radius filter (15km). 
+  # Near1 (approx 11km away) should pass.
+  # Near2 (approx 22km away) should be filtered.
   res <- motis_one_to_many_batch(
     one, many,
     data_dir = ".",
@@ -218,7 +218,7 @@ test_that("spatial_filter reduces destinations per origin", {
     output_dir = custom_dir,
     keep_files = TRUE,
     mode = "WALK",
-    spatial_filter = TRUE,
+    spatial_filter_km = 15,
     echo = FALSE
   )
   
@@ -273,7 +273,7 @@ test_that("spatial_filter=FALSE includes all destinations", {
     motis_path = dummy_bin_dir,
     output_dir = custom_dir,
     keep_files = TRUE,
-    spatial_filter = FALSE,
+    spatial_filter_km = NULL,
     echo = FALSE
   )
   

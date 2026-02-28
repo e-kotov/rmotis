@@ -18,7 +18,7 @@ test_that("motis_one_to_many_plan_batch creates query file for multiple origins"
     one, many,
     output_file = temp_file,
     mode = "WALK",
-    spatial_filter = FALSE,  # Disable to test basic functionality
+    spatial_filter_km = NULL,  # Disable to test basic functionality
     spatial_sort = FALSE,
     progress = FALSE
   )
@@ -62,7 +62,7 @@ test_that("spatial_sort reorders origins in plan_batch", {
     one, many,
     output_file = temp_file,
     mode = "WALK",
-    spatial_filter = FALSE,
+    spatial_filter_km = NULL,
     spatial_sort = TRUE,
     progress = FALSE
   )
@@ -91,7 +91,7 @@ test_that("spatial_filter reduces destinations in plan_batch", {
     output_file = temp_file,
     mode = "WALK",
     max = 7200,
-    spatial_filter = TRUE,
+    spatial_filter_km = 50,
     spatial_sort = FALSE,
     progress = FALSE
   )
@@ -128,7 +128,7 @@ test_that("plan_batch skips origins with no destinations in range", {
     output_file = temp_file,
     mode = "WALK",
     max = 7200,
-    spatial_filter = TRUE,
+    spatial_filter_km = 50,
     spatial_sort = FALSE,
     progress = FALSE
   )
@@ -158,7 +158,7 @@ test_that("plan_batch generates correct query file content", {
     output_file = temp_file,
     mode = "BIKE",
     max = 3600,
-    spatial_filter = FALSE,
+    spatial_filter_km = NULL,
     spatial_sort = FALSE,
     progress = FALSE
   )

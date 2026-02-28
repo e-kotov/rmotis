@@ -38,6 +38,11 @@
 #'   `.duckdb`, or **Directory** of `.parquet` files).
 #' @param checkpoint_file Optional path for checkpointing progress (API engine only).
 #' @param progress Logical. Display progress bar/messages?
+#' @param spatial_filter_km Numeric. Optional straight-line distance threshold
+#'   (in kilometers). If provided, destinations further than this distance from
+#'   an origin will be excluded from the MOTIS request for that origin. This
+#'   is highly recommended for very large destination sets to reduce server
+#'   load and network traffic.
 #' @param data_dir Path to MOTIS data directory. Required if `engine='batch'`.
 #' @param temp_dir Directory for temporary batch files. Defaults to `tempdir()`.
 #' @param keep_files Logical. Keep temporary files? Defaults to `FALSE`.
@@ -65,7 +70,10 @@ motis_one_to_many <- function(
   max = 7200, # 2 hours in seconds
   maxMatchingDistance = 1000, # 1 km
   withDistance = FALSE,
+  spatial_filter_km = NULL,
   ...,
+  spatial_filter = NULL,
+  max_speed_kmh = NULL,
   engine = c("api", "batch"),
   output = c("data.frame", "raw_list"),
   parallel = TRUE,
@@ -97,7 +105,10 @@ motis_one_to_many <- function(
     duration_val = max,
     maxMatchingDistance = maxMatchingDistance,
     withDistance = withDistance,
+    spatial_filter_km = spatial_filter_km,
     ...,
+    spatial_filter = spatial_filter,
+    max_speed_kmh = max_speed_kmh,
     engine = engine,
     output = output,
     parallel = parallel,
@@ -129,7 +140,10 @@ motis_one_to_many <- function(
   duration_val = 7200,
   maxMatchingDistance = 1000,
   withDistance = FALSE,
+  spatial_filter_km = NULL,
   ...,
+  spatial_filter = NULL,
+  max_speed_kmh = NULL,
   engine = c("api", "batch"),
   output = c("data.frame", "raw_list"),
   parallel = TRUE,
@@ -149,6 +163,13 @@ motis_one_to_many <- function(
   client_fun = motis.client::mc_oneToMany
 ) {
   # --- 1. Argument and Input Validation ---
+  if (!is.null(spatial_filter)) {
+    stop("The 'spatial_filter' (logical) argument is deprecated and has been removed. Please use 'spatial_filter_km' (numeric) instead.", call. = FALSE)
+  }
+  if (!is.null(max_speed_kmh)) {
+    stop("The 'max_speed_kmh' argument is deprecated and has been removed. Please use 'spatial_filter_km' instead.", call. = FALSE)
+  }
+
   engine <- if (is.character(engine)) match.arg(engine) else engine
   output <- if (is.character(output)) match.arg(output) else output
   backend <- if (is.character(backend)) match.arg(backend) else backend
@@ -157,9 +178,14 @@ motis_one_to_many <- function(
   one_places <- .format_place_onemany(one, id_col = one_id_col)
   many_places_vec <- .format_place_onemany(many, id_col = many_id_col)
   
-  # Extract spatial filter from dots if present, default to FALSE for API backward compatibility
+  # Check for deprecated arguments in dots (legacy fallback)
   dots <- list(...)
-  spatial_filter <- if ("spatial_filter" %in% names(dots)) dots$spatial_filter else FALSE
+  if (!is.null(dots$spatial_filter)) {
+    stop("The 'spatial_filter' (logical) argument is deprecated and has been removed. Please use 'spatial_filter_km' (numeric) instead.", call. = FALSE)
+  }
+  if (!is.null(dots$max_speed_kmh)) {
+    stop("The 'max_speed_kmh' argument is deprecated and has been removed. Please use 'spatial_filter_km' instead.", call. = FALSE)
+  }
   
   if (engine == "batch") {
     if (is.null(data_dir)) stop("'data_dir' is required for engine='batch'", call. = FALSE)
@@ -188,7 +214,7 @@ motis_one_to_many <- function(
   # AND no destination splitting requested AND no spatial filter requested
   is_simple <- !parallel && length(one_places) == 1 && is.null(output_path) && 
                is.null(checkpoint_file) && is.null(max_destinations_per_batch) &&
-               !isTRUE(spatial_filter)
+               is.null(spatial_filter_km)
   
   if (is_simple) {
     return(.motis_one_to_many_simple(
@@ -229,7 +255,8 @@ motis_one_to_many <- function(
       progress = progress,
       parallel = parallel,
       api_endpoint = api_endpoint,
-      duration_key = duration_key
+      duration_key = duration_key,
+      spatial_filter_km = spatial_filter_km
     ))
   }
 }
@@ -248,7 +275,7 @@ motis_one_to_many <- function(
 #'   (timing statistics) to the console.
 #' @param output_dir Directory where to save the temporary batch files. 
 #'   Mapped to `temp_dir` in the new interface.
-#' @param spatial_filter Logical. Pre-filter destinations per origin.
+#' @param spatial_filter_km Numeric. Optional straight-line distance threshold.
 #' @param spatial_sort Logical. Sort origins spatially.
 #' @param split Integer. Mapped to `max_destinations_per_batch` if > 1.
 #' @param chunk_size Number of lines to read and process at a time. Defaults to `10000L`.
@@ -275,7 +302,7 @@ motis_one_to_many_batch <- function(
   echo = TRUE,
   output_dir = tempdir(),
   keep_files = FALSE,
-  spatial_filter = TRUE,
+  spatial_filter_km = NULL,
   spatial_sort = TRUE,
   split = 1L,
   eol = NULL
@@ -291,7 +318,7 @@ motis_one_to_many_batch <- function(
     withDistance = withDistance, ...,
     engine = "batch", motis_path = motis_path, chunk_size = chunk_size,
     output_callback = output_callback, echo = echo, temp_dir = output_dir,
-    keep_files = keep_files, spatial_filter = spatial_filter,
+    keep_files = keep_files, spatial_filter_km = spatial_filter_km,
     spatial_sort = spatial_sort, max_destinations_per_batch = max_dest,
     eol = eol
   )
@@ -577,7 +604,7 @@ motis_one_to_many_read_batch <- function(
   progress = TRUE,
   temp_dir = tempdir(),
   keep_files = FALSE,
-  spatial_filter = TRUE,
+  spatial_filter_km = NULL,
   spatial_sort = TRUE,
   batch_size = NULL,
   max_destinations_per_batch = NULL,
@@ -624,7 +651,7 @@ motis_one_to_many_read_batch <- function(
   many_ids <- .get_ids(many, id_col = many_id_col)
   
   # Extract coordinates if needed for spatial operations
-  if (spatial_sort || spatial_filter) {
+  if (spatial_sort || !is.null(spatial_filter_km)) {
     one_coords <- .extract_coords(one)
   }
   
@@ -637,14 +664,10 @@ motis_one_to_many_read_batch <- function(
   }
   
   # Prepare spatial filter if enabled
-  if (spatial_filter) {
+  if (!is.null(spatial_filter_km)) {
     many_coords <- .extract_coords(many)
-    # Speed estimates (km/h)
-    max_speed <- switch(mode, WALK = 6, BIKE = 20, CAR = 130, TRANSIT = 100)
-    # Max travel distance in km with 20% buffer
-    # maxTravelTime is in minutes, max is in seconds
-    duration_sec <- if (duration_key == "maxTravelTime") max * 60 else max
-    max_radius_km <- (duration_sec * max_speed / 3600) * 1.2
+    # Use 5% buffer for straight-line distance safety
+    max_radius_km <- spatial_filter_km * 1.05
   }
   
   # Smart Chunking Dispatch for CLI
@@ -697,7 +720,7 @@ motis_one_to_many_read_batch <- function(
     current_many_ids <- many_ids
     current_dest_chunks <- dest_chunks
     
-    if (spatial_filter) {
+    if (!is.null(spatial_filter_km)) {
       origin_lat <- one_coords[i, "lat"]
       origin_lon <- one_coords[i, "lon"]
       
@@ -1040,7 +1063,8 @@ motis_one_to_many_read_batch <- function(
   progress,
   parallel,
   api_endpoint = "/api/v1/one-to-many",
-  duration_key = "max"
+  duration_key = "max",
+  spatial_filter_km = NULL
 ) { 
   # Setup code
   user_server <- dots[[".server"]]
@@ -1127,28 +1151,14 @@ motis_one_to_many_read_batch <- function(
   }
   
   # Spatial Filter Logic
-  spatial_filter <- dots[["spatial_filter"]] %||% FALSE
-  dots[["spatial_filter"]] <- NULL
-  
   many_coords <- NULL
-  max_radius_deg <- NULL
+  max_radius_km <- NULL
   
-  if (spatial_filter) {
+  if (!is.null(spatial_filter_km)) {
     many_coords <- .extract_coords(many)
-    max_speed_kmh <- dots[["max_speed_kmh"]]
-    dots[["max_speed_kmh"]] <- NULL
-    
-    if (is.null(max_speed_kmh)) {
-      max_speed <- switch(mode, WALK = 6, BIKE = 20, CAR = 130, TRANSIT = 100)
-    } else {
-      max_speed <- max_speed_kmh
-    }
-    
-    # maxTravelTime is in minutes, max is in seconds
-    duration_sec <- if (duration_key == "maxTravelTime") max * 60 else max
-    max_radius_km <- (duration_sec * max_speed / 3600) * 1.2
-    
-    if (progress) message(sprintf("v Spatial filter enabled (radius: %.2f km)", max_radius_km))
+    # Use 5% buffer for straight-line distance safety
+    max_radius_km <- spatial_filter_km * 1.05
+    if (progress) message(sprintf("v Spatial filter enabled (radius: %.2f km)", spatial_filter_km))
   }
   
   dot_params <- .collapse_dots(dots)
@@ -1332,7 +1342,9 @@ motis_one_to_many_read_batch <- function(
         
         # Professional degree conversion
         .km_to_deg <- function(radius_km, lat) {
-          R <- 6371
+          # Use a conservative radius (polar radius ~6357km) 
+          # to ensure we are more inclusive at the equator.
+          R <- 6357
           lat_deg <- (radius_km / R) * (180 / pi)
           lat_rad <- abs(lat) * (pi / 180)
           if (lat_rad > 1.55) lat_rad <- 1.55 # ~89 degrees

@@ -22,7 +22,7 @@ motis_one_to_many_batch(
   echo = TRUE,
   output_dir = tempdir(),
   keep_files = FALSE,
-  spatial_filter = TRUE,
+  spatial_filter_km = NULL,
   spatial_sort = TRUE,
   split = 1L,
   eol = NULL
@@ -72,7 +72,7 @@ Mapped to \code{temp_dir} in the new interface.}
 
 \item{keep_files}{Logical. Keep temporary files? Defaults to \code{FALSE}.}
 
-\item{spatial_filter}{Logical. Pre-filter destinations per origin.}
+\item{spatial_filter_km}{Numeric. Optional straight-line distance threshold.}
 
 \item{spatial_sort}{Logical. Sort origins spatially.}
 

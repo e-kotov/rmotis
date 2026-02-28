@@ -40,6 +40,11 @@
 #'   `.duckdb`, or **Directory** of `.parquet` files).
 #' @param checkpoint_file Optional path for checkpointing progress (API engine only).
 #' @param progress Logical. Display progress bar/messages?
+#' @param spatial_filter_km Numeric. Optional straight-line distance threshold
+#'   (in kilometers). If provided, destinations further than this distance from
+#'   an origin will be excluded from the MOTIS request for that origin. This
+#'   is highly recommended for very large destination sets to reduce server
+#'   load and network traffic.
 #' @param data_dir Path to MOTIS data directory. Required if `engine='batch'`.
 #' @param temp_dir Directory for temporary batch files. Defaults to `tempdir()`.
 #' @param keep_files Logical. Keep temporary files? Defaults to `FALSE`.
@@ -62,7 +67,10 @@ motis_one_to_many_intermodal <- function(
   many_id_col = "id",
   maxMatchingDistance = 1000,
   withDistance = FALSE,
+  spatial_filter_km = NULL,
   ...,
+  spatial_filter = NULL,
+  max_speed_kmh = NULL,
   engine = c("api", "batch"),
   output = c("data.frame", "raw_list"),
   parallel = TRUE,
@@ -95,8 +103,11 @@ motis_one_to_many_intermodal <- function(
     duration_val = max_travel_time,
     maxMatchingDistance = maxMatchingDistance,
     withDistance = withDistance,
+    spatial_filter_km = spatial_filter_km,
     time = time_str,
     ...,
+    spatial_filter = spatial_filter,
+    max_speed_kmh = max_speed_kmh,
     engine = engine,
     output = output,
     parallel = parallel,
