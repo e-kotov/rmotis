@@ -58,16 +58,25 @@ motis_plan <- function(
   # --- 1. Argument Validation ---
   output <- match.arg(output)
   time <- as.POSIXct(time)
+  
+  dots <- list(...)
+  # Clean dots for validation and request building
+  dots_clean <- dots
+  dots_clean[c("from", "to", "time", "arrive_by", "from_id_col", "to_id_col", "output", "parallel", ".server")] <- NULL
+  
+  # Validation
+  is_matrix <- output %in% c("travel_time_matrix_long", "travel_time_matrix_wide")
+  .motis_validate_args(
+    n_many = if (is_matrix) NROW(to) else NULL,
+    num_itineraries = dots_clean$numItineraries,
+    search_window = if (!is.null(dots_clean$searchWindow)) as.numeric(dots_clean$searchWindow) / 60 else NULL
+  )
 
   # --- 2. Initialize common variables ---
   time_str <- .format_time_utc(time)
   
-  dots <- list(...)
   user_server <- dots[[".server"]]
-  # Clean dots
-  dots[c("from", "to", "time", "arrive_by", "from_id_col", "to_id_col", "output", "parallel", ".server")] <- NULL
-
-  dots <- .collapse_dots(dots)
+  dots <- .collapse_dots(dots_clean)
 
   # Helper to build a single request
   build_req <- function(f, t) {

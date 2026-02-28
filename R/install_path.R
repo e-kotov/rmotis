@@ -31,16 +31,16 @@ motis_clear_path <- function(project_path = getwd(), quiet = FALSE) {
   if (!is.null(original_path)) {
     Sys.setenv(PATH = original_path)
     options(rmotis.original_path = NULL)
-    if (!quiet) message("Restored PATH for the current R session.")
+    if (!.is_quiet(quiet)) message("Restored PATH for the current R session.")
   } else {
-    if (!quiet) message("No original session PATH backup found in options().")
+    if (!.is_quiet(quiet)) message("No original session PATH backup found in options().")
   }
 
   # 2. Modify .Rprofile
   r_profile_path <- file.path(project_path, ".Rprofile")
 
   if (!file.exists(r_profile_path)) {
-    if (!quiet) {
+    if (!.is_quiet(quiet)) {
       message("No .Rprofile file found in '", project_path, "'.")
     }
     return(invisible(FALSE))
@@ -144,11 +144,11 @@ set_path_session <- function(dir, quiet = FALSE) {
 set_path_project <- function(dir, project_path, quiet = FALSE) {
   r_profile_path <- file.path(project_path, ".Rprofile")
 
-  if (!quiet) {
+  if (!.is_quiet(quiet)) {
     message("! Modifying project startup file: ", r_profile_path)
   }
 
-  if (interactive() && !quiet) {
+  if (interactive() && !.is_quiet(quiet)) {
     ans <- utils::askYesNo("Do you want to proceed?", default = TRUE)
     if (!isTRUE(ans)) {
       message("Aborted. .Rprofile was not modified.")
@@ -165,21 +165,21 @@ set_path_project <- function(dir, project_path, quiet = FALSE) {
   )
 
   if (!file.exists(r_profile_path)) {
-    if (!quiet) {
+    if (!.is_quiet(quiet)) {
       message("  Creating new .Rprofile file.")
     }
     writeLines(line_to_add, r_profile_path)
   } else {
     lines <- readLines(r_profile_path, warn = FALSE)
     if (any(grepl(comment_tag, lines, fixed = TRUE))) {
-      if (!quiet) {
+      if (!.is_quiet(quiet)) {
         message(
           "  .Rprofile already contains rmotis PATH configuration. No changes made."
         )
       }
       return(invisible(NULL))
     }
-    if (!quiet) {
+    if (!.is_quiet(quiet)) {
       message("  Appending configuration to existing .Rprofile.")
     }
     if (length(lines) > 0 && nzchar(lines[length(lines)])) {
@@ -188,7 +188,7 @@ set_path_project <- function(dir, project_path, quiet = FALSE) {
     lines <- c(lines, line_to_add)
     writeLines(lines, r_profile_path)
   }
-  if (!quiet) {
+  if (!.is_quiet(quiet)) {
     message(
       "\u2714 .Rprofile modified. PATH will be set on project startup.\n",
       "  (Undo by running `motis_clear_path()`)"

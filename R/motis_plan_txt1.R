@@ -180,13 +180,21 @@ motis_plan_txt_1 <- function(
   output <- match.arg(output)
 
   # --- 2. Prepare Parameters ---
+  # Capture all additional API arguments passed via '...'
+  additional_params <- list(...)
+  
+  # Validation
+  is_matrix_mode <- output == "travel_time_matrix_long"
+  .motis_validate_args(
+    n_many = if (is_matrix_mode) NROW(to) else NULL,
+    num_itineraries = additional_params$numItineraries,
+    search_window = if (!is.null(additional_params$searchWindow)) as.numeric(additional_params$searchWindow) / 60 else NULL
+  )
+
   time_str <- paste0(
     format(as.POSIXct(time), "%Y-%m-%dT%H:%M:%S", tz = "UTC"),
     "Z"
   )
-
-  # Capture all additional API arguments passed via '...'
-  additional_params <- list(...)
 
   # Format the 'from' and 'to' locations into character strings
   from_place <- .format_place(from, id_col = from_id_col)

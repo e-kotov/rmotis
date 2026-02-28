@@ -6,6 +6,16 @@ NULL
 # minimal internal %||% (no extra deps)
 `%||%` <- function(x, y) if (!is.null(x)) x else y
 
+# Internal quiet helper
+.is_quiet <- function(quiet = FALSE) {
+  isTRUE(quiet) || isTRUE(getOption("rmotis.quiet", FALSE))
+}
+
+# Internal force helper
+.is_forced <- function(force = FALSE) {
+  isTRUE(force) || isTRUE(getOption("rmotis.force", FALSE))
+}
+
 # Internal debug helper
 debug_msg <- function(...) {
   if (isTRUE(getOption("rmotis.debug", FALSE))) {

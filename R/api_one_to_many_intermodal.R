@@ -94,6 +94,14 @@ motis_one_to_many_intermodal <- function(
   
   time_str <- .format_time_utc(time)
   
+  # Format inputs to "lat,lon" strings (Intermodal API uses commas, unlike street routing)
+  # Normalize character inputs to use commas if semicolons were provided
+  if (is.character(one)) one <- gsub(";", ",", one, fixed = TRUE)
+  if (is.character(many)) many <- gsub(";", ",", many, fixed = TRUE)
+  
+  one_places <- .format_place(one, id_col = one_id_col)
+  many_places_vec <- .format_place(many, id_col = many_id_col)
+  
   .motis_one_to_many_infra(
     one = one,
     many = many,
@@ -125,6 +133,8 @@ motis_one_to_many_intermodal <- function(
     motis_path = motis_path,
     api_endpoint = "/api/experimental/one-to-many-intermodal",
     duration_key = "maxTravelTime",
-    client_fun = motis.client::mc_oneToManyIntermodalPost
+    client_fun = motis.client::mc_oneToManyIntermodalPost,
+    .one_places = one_places,
+    .many_places = many_places_vec
   )
 }

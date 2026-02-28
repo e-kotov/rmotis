@@ -154,7 +154,7 @@ motis_set_server_address <- function(
   config_path <- normalizePath(config_path, mustWork = TRUE)
 
   # --- 2. User Confirmation ---
-  if (interactive() && !force) {
+  if (interactive() && !.is_forced(force)) {
     ans <- utils::askYesNo(
       paste0(
         "This will modify the existing file '",
@@ -298,7 +298,7 @@ motis_set_config <- function(config_path, ..., force = FALSE) {
   config_path <- normalizePath(config_path, mustWork = TRUE)
 
   # --- User Confirmation ---
-  if (interactive() && !force) {
+  if (interactive() && !.is_forced(force)) {
     ans <- utils::askYesNo(
       paste0(
         "This will modify the existing file '",
@@ -466,7 +466,8 @@ motis_config <- function(
     wd = work_dir,
     echo_cmd = echo_cmd,
     echo = echo,
-    spinner = spinner
+    spinner = spinner,
+    stdin = "|"
   )
 
   if (!file.exists(config_file)) {
@@ -519,7 +520,8 @@ motis_import <- function(
     wd = work_dir,
     echo_cmd = echo_cmd,
     echo = echo,
-    spinner = spinner
+    spinner = spinner,
+    stdin = "|"
   )
   data_dir <- file.path(work_dir, "data")
   if (!dir.exists(data_dir)) {

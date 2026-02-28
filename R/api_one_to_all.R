@@ -43,6 +43,9 @@ motis_one_to_all <- function(
   output <- match.arg(output)
   time <- as.POSIXct(time)
   stopifnot("'one' must be a single location" = NROW(one) == 1)
+  
+  # Validation
+  .motis_validate_args(max_travel_time = max_travel_time)
 
   # --- 2. Format Inputs ---
   one_place <- .format_place(one)
@@ -158,6 +161,9 @@ motis_one_to_all_generate_batch <- function(
   if (missing(output_file) || !is.character(output_file) || length(output_file) != 1) {
     stop("`output_file` must be a single string specifying the file path.", call. = FALSE)
   }
+  
+  # Validation
+  .motis_validate_args(max_travel_time = max_travel_time)
 
   dots <- .collapse_dots(list(...))
   
