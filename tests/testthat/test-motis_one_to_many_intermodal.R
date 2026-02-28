@@ -30,7 +30,7 @@ test_that("motis_one_to_many_intermodal works with mocked POST request", {
   
   mock_perform <- function(req, ...) {
     # Check that the URL is correct
-    expect_equal(req$url, "http://localhost:8080/api/experimental/one-to-many-intermodal")
+    expect_equal(req$url, "http://motis.fake/api/experimental/one-to-many-intermodal")
     
     # Check body
     body_data <- req$body$data
@@ -48,11 +48,10 @@ test_that("motis_one_to_many_intermodal works with mocked POST request", {
         many = dests,
         max_travel_time = 60,
         withDistance = TRUE,
-        .server = "http://localhost:8080",
+        .server = "http://motis.fake",
         parallel = FALSE,
         progress = FALSE,
-        spatial_filter = FALSE,
-        spatial_sort = FALSE
+        spatial_filter_km = NULL, spatial_sort = FALSE
       )
       
       expect_s3_class(res, "data.frame")
@@ -68,58 +67,57 @@ test_that("motis_one_to_many_intermodal works with mocked POST request", {
 
 test_that("motis_one_to_many_intermodal works with batch engine (CLI)", {
   skip_on_cran()
-  skip_on_os("windows")
 
   one <- data.frame(lat = 49.6, lon = 6.1, id = "Lux")
   many <- data.frame(lat = 49.5, lon = 6.0, id = "Esch")
   
-  # Create a dummy MOTIS script
-  dummy_bin_dir <- tempfile("motis_bin_")
-  dir.create(dummy_bin_dir)
-  dummy_motis <- file.path(dummy_bin_dir, "motis")
-  
-  # The dummy script will just echo a mock response for each query line
-  sys_script <- c(
-    "#!/bin/sh",
-    "QUERY_FILE=$3",
-    "RESP_FILE=$5",
-    "# Verify that the query contains maxTravelTime",
-    "if grep -q 'maxTravelTime=' \"$QUERY_FILE\"; then",
-    "  lines=$(wc -l < \"$QUERY_FILE\")",
-    "  for i in $(seq 1 $lines); do",
-    "    echo '[{\"duration\":1200,\"distance\":20000}]' >> \"$RESP_FILE\"",
-    "  done",
-    "else",
-    "  echo 'Error: maxTravelTime missing' >&2",
-    "  exit 1",
-    "fi"
-  )
-  writeLines(sys_script, dummy_motis)
-  Sys.chmod(dummy_motis, "0755")
-  on.exit(unlink(dummy_bin_dir, recursive = TRUE), add = TRUE)
-  
-  mock_intermodal_build <- function(...) {
-    list(...) # just return args
+  # Mock processx::run to simulate MOTIS CLI
+  mock_run <- function(command, args, ...) {
+    # Find response and query files in args
+    q_idx <- which(args == "-q") + 1
+    r_idx <- which(args == "-r") + 1
+    
+    query_file <- args[q_idx]
+    response_file <- args[r_idx]
+    
+    # Verify that the query contains maxTravelTime
+    queries <- readLines(query_file)
+    expect_true(any(grepl("maxTravelTime", queries)))
+    
+    # Generate mock response
+    writeLines('[{"duration":1200,"distance":20000}]', response_file)
+    
+    list(status = 0L, stdout = "MOTIS Batch Success", stderr = "")
   }
   
+  # Mock resolve_motis_cmd to return a fake path
+  mock_resolve <- function(...) "/usr/local/bin/motis"
+  
   testthat::with_mocked_bindings(
-    mc_oneToManyIntermodalPost = mock_intermodal_build,
+    run = mock_run,
+    .package = "processx",
     code = {
-      res <- motis_one_to_many_intermodal(
-        one, many, 
-        engine = "batch",
-        data_dir = ".", 
-        motis_path = dummy_bin_dir,
-        progress = FALSE,
-        spatial_filter = FALSE,
-        spatial_sort = FALSE
-      )
+      testthat::with_mocked_bindings(
+        resolve_motis_cmd = mock_resolve,
+        .package = "rmotis",
+        code = {
+      # Use withr to ensure polling is off
+      withr::with_options(list(rmotis.wait_for_server = FALSE), {
+        res <- motis_one_to_many_intermodal(
+          one, many, 
+          engine = "batch",
+          data_dir = ".", 
+          progress = FALSE,
+          spatial_filter_km = NULL, spatial_sort = FALSE,
+          parallel = FALSE
+        )
+      })
       
       expect_s3_class(res, "data.frame")
       expect_equal(nrow(res), 1)
       expect_equal(res$duration_s, 1200)
-    },
-    .package = "motis.client"
+    })
+    }
   )
 })
 
@@ -148,9 +146,8 @@ test_that("motis_one_to_many_intermodal works in parallel (mocked)", {
         backend = "httr2",
         batch_size = 1,
         progress = FALSE,
-        spatial_filter = FALSE,
-        spatial_sort = FALSE,
-        .server = "http://localhost:8080"
+        spatial_filter_km = NULL, spatial_sort = FALSE,
+        .server = "http://motis.fake"
       )
       
       expect_equal(nrow(res), 2)
@@ -163,7 +160,7 @@ test_that("motis_one_to_many_intermodal works in parallel (mocked)", {
 test_that("motis_one_to_many_intermodal spatial filter works", {
   # Origin at Lux Central
   one <- data.frame(lat = 49.5999, lon = 6.1342, id = "Lux")
-  # Dest 1: Esch (close enough for 100km/h and 60 min)
+  # Dest 1: Esch (close enough for 100km radius)
   # Dest 2: Paris (far away)
   many <- data.frame(
     lat = c(49.4938, 48.8566),
@@ -190,12 +187,12 @@ test_that("motis_one_to_many_intermodal spatial filter works", {
     code = {
       res <- motis_one_to_many_intermodal(
         one, many,
-        max_travel_time = 60, # 60 min * 100 km/h = 100 km radius
+        max_travel_time = 60,
         parallel = FALSE,
         progress = FALSE,
-        spatial_filter = TRUE,
+        spatial_filter_km = 100,
         spatial_sort = FALSE,
-        .server = "http://localhost:8080"
+        .server = "http://motis.fake"
       )
       
       expect_equal(nrow(res), 1)

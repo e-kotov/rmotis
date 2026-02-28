@@ -809,24 +809,48 @@ debug_msg <- function(...) {
 }
 
 
-#' Internal helper to get bounding box radii in degrees
-#' @param radius_km Radius in kilometers.
-#' @param lat Latitude in decimal degrees.
-#' @return A list with `lat` and `lon` radius in degrees.
+#' Convert Kilometers to Latitude/Longitude Degrees (WGS84 Ellipsoid)
+#'
+#' This uses the WGS84 ellipsoidal model for high accuracy across different 
+#' latitudes without requiring heavy spatial packages.
+#'
+#' @param radius_km Numeric. The search radius in kilometers.
+#' @param lat Numeric. The latitude of the origin point.
+#' @return A list with `lat` and `lon` degree offsets.
 #' @noRd
 .km_to_deg <- function(radius_km, lat) {
-  # Earth's mean radius in km (WGS84 approximately)
-  R <- 6371
+  # Add a 1% safety buffer to account for the fact that a 
+  # "straight line" in a bounding box is a chord on a curved ellipsoid.
+  # 1% is sufficient even for large 2000km radii and extreme latitudes.
+  radius_km <- radius_km * 1.01
   
-  # Latitude degrees are approximately constant
-  lat_deg <- (radius_km / R) * (180 / pi)
+  # WGS84 Ellipsoid Constants
+  a <- 6378.137    # Semi-major axis (Equatorial radius)
+  b <- 6356.752314 # Semi-minor axis (Polar radius)
   
-  # Longitude degrees converge at the poles
-  # Clamp latitude to avoid division by zero
-  lat_rad <- abs(lat) * (pi / 180)
-  if (lat_rad > 1.55) lat_rad <- 1.55 # ~89 degrees
+  # Latitude degree length is slightly variable
+  lat_rad <- lat * (pi / 180)
   
-  lon_deg <- lat_deg / cos(lat_rad)
+  # Eccentricity squared
+  e2 <- (a^2 - b^2) / a^2
+  
+  # Radius of curvature in the prime vertical (longitude direction)
+  # N = a / sqrt(1 - e^2 * sin^2(lat))
+  N <- a / sqrt(1 - e2 * (sin(lat_rad)^2))
+  
+  # Precise degree lengths in km
+  deg_lat_km <- (pi / 180) * (a * (1 - e2)) / ((1 - e2 * (sin(lat_rad)^2))^(1.5))
+  deg_lon_km <- (pi / 180) * N * cos(lat_rad)
+  
+  # Degrees for the given radius
+  lat_deg <- radius_km / deg_lat_km
+  
+  # Handle longitude near poles
+  if (abs(lat) > 89.9) {
+    lon_deg <- 360 # Include everything at the pole
+  } else {
+    lon_deg <- radius_km / deg_lon_km
+  }
   
   list(lat = lat_deg, lon = lon_deg)
 }

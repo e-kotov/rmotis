@@ -14,7 +14,10 @@ motis_one_to_many_intermodal(
   many_id_col = "id",
   maxMatchingDistance = 1000,
   withDistance = FALSE,
+  spatial_filter_km = NULL,
   ...,
+  spatial_filter = NULL,
+  max_speed_kmh = NULL,
   engine = c("api", "batch"),
   output = c("data.frame", "raw_list"),
   parallel = TRUE,
@@ -58,6 +61,12 @@ coordinates to the street network}
 \item{withDistance}{Logical. Include distance in the output?
 Defaults to \code{FALSE}. \strong{Note:} Currently ignored by the intermodal API.}
 
+\item{spatial_filter_km}{Numeric. Optional straight-line distance threshold
+(in kilometers). If provided, destinations further than this distance from
+an origin will be excluded from the MOTIS request for that origin. This
+is highly recommended for very large destination sets to reduce server
+load and network traffic.}
+
 \item{...}{
   Arguments passed on to \code{\link[motis.client:mc_oneToManyIntermodalPost]{motis.client::mc_oneToManyIntermodalPost}}
   \describe{
@@ -99,6 +108,8 @@ Allowed values: WALK, BIKE, RENTAL, CAR, CAR_PARKING, CAR_DROPOFF, ODM, RIDE_SHA
     \item{\code{.json_auto_unbox}}{Logical. If TRUE, JSON bodies are encoded with \code{auto_unbox = TRUE} (jsonlite). Defaults to FALSE unless overridden.}
     \item{\code{.paginate}}{A logical, character string, or function to enable pagination. If TRUE (or "link_header"), uses Link headers. Other options: "page_param", "cursor_param", or a custom function. See \code{oa3_paginate()}.}
   }}
+
+\item{spatial_filter, max_speed_kmh}{Deprecated. Use \code{spatial_filter_km} instead.}
 
 \item{engine}{Execution engine:
 \itemize{

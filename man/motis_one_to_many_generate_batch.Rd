@@ -18,6 +18,7 @@ motis_one_to_many_generate_batch(
   ...,
   append = FALSE,
   api_endpoint = "/api/v1/one-to-many",
+  duration_key = "max",
   quiet = FALSE
 )
 }
@@ -55,6 +56,9 @@ destination identifiers in the metadata file. Defaults to \code{"id"}.}
 \code{.meta} sidecar.}
 
 \item{api_endpoint}{The API path. Defaults to \code{"/api/v1/one-to-many"}.}
+
+\item{duration_key}{The name of the duration parameter in the query.
+Defaults to \code{"max"}.}
 
 \item{quiet}{Logical. If \code{TRUE}, suppress status messages.}
 }

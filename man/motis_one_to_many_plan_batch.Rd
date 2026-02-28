@@ -16,10 +16,11 @@ motis_one_to_many_plan_batch(
   many_id_col = "id",
   withDistance = FALSE,
   ...,
-  spatial_filter = TRUE,
+  spatial_filter_km = NULL,
   spatial_sort = TRUE,
   progress = TRUE,
-  api_endpoint = "/api/v1/one-to-many"
+  api_endpoint = "/api/v1/one-to-many",
+  duration_key = "max"
 )
 }
 \arguments{
@@ -48,9 +49,10 @@ Defaults to \code{FALSE}.}
 
 \item{...}{Additional API parameters passed to the MOTIS one-to-many endpoint.}
 
-\item{spatial_filter}{Logical. If \code{TRUE} (default), pre-filter destinations
-per origin to a bounding box based on \code{max} travel time and typical mode
-speed. Reduces match memory and I/O for unreachable destinations.}
+\item{spatial_filter_km}{Numeric. Optional straight-line distance threshold
+(in kilometers). If provided, destinations further than this distance from
+an origin will be excluded from the batch query for that origin. Reduces
+query file size and server processing load.}
 
 \item{spatial_sort}{Logical. If \code{TRUE} (default), sort origins by latitude
 before generating queries. Improves MOTIS graph cache locality when
@@ -59,6 +61,9 @@ processing the batch file.}
 \item{progress}{Logical. If \code{TRUE} (default), display progress messages.}
 
 \item{api_endpoint}{API endpoint path. Defaults to \code{"/api/v1/one-to-many"}.}
+
+\item{duration_key}{The name of the duration parameter in the query.
+Defaults to \code{"max"}.}
 }
 \value{
 Invisibly returns a list with:
@@ -80,7 +85,7 @@ This function is a convenience wrapper that:
 \item Sorts origins by latitude (\code{spatial_sort = TRUE})
 \item For each origin:
 \itemize{
-\item Filters destinations to a bounding box (\code{spatial_filter = TRUE})
+\item Filters destinations to a bounding box (\code{spatial_filter_km})
 \item Calls \code{\link[=motis_one_to_many_generate_batch]{motis_one_to_many_generate_batch()}} with \code{append = TRUE}
 }
 \item Returns file metadata
@@ -93,7 +98,7 @@ This function is a convenience wrapper that:
 \item \strong{Spatial sort}: Origins are sorted by latitude before iteration. This
 improves MOTIS graph cache hits when processing the batch file sequentially.
 \item \strong{Spatial filter}: For each origin, destinations are filtered to a
-bounding box based on \code{max} travel time, mode speed, and a 20\% buffer.
+bounding box based on \code{spatial_filter_km} and a 5\% buffer.
 This reduces unnecessary map-matching attempts and response I/O.
 }
 }
