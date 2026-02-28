@@ -68,5 +68,5 @@ advice.
 ## Code of Conduct
 
 Please note that the rmotis project is released with a [Contributor Code
-of Conduct](https://www.ekotov.pro/rmotis/CODE_OF_CONDUCT.md). By
+of Conduct](http://www.ekotov.pro/rmotis/CODE_OF_CONDUCT.md). By
 contributing to this project you agree to abide by its terms.

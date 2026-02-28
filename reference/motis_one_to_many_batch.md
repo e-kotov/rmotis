@@ -3,7 +3,7 @@
 **\[deprecated\]**
 
 This function is now a wrapper around
-[`motis_one_to_many()`](https://www.ekotov.pro/rmotis/reference/motis_one_to_many.md)
+[`motis_one_to_many()`](http://www.ekotov.pro/rmotis/reference/motis_one_to_many.md)
 with `engine = "batch"`.
 
 ## Usage

@@ -16,7 +16,7 @@ motis_open_ui(server = NULL, host = "127.0.0.1", port = 8080L)
   An optional
   [`processx::process`](http://processx.r-lib.org/reference/process.md)
   object from
-  [`motis_start_server()`](https://www.ekotov.pro/rmotis/reference/motis_start_server.md).
+  [`motis_start_server()`](http://www.ekotov.pro/rmotis/reference/motis_start_server.md).
   If provided, host and port are inferred from the server's command line
   arguments.
 

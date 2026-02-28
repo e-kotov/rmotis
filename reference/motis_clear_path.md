@@ -3,7 +3,7 @@
 Removes MOTIS-specific configuration from the project's `.Rprofile` and
 restores the `PATH` environment variable for the current R session to
 its state before
-[`motis_install()`](https://www.ekotov.pro/rmotis/reference/motis_install.md)
+[`motis_install()`](http://www.ekotov.pro/rmotis/reference/motis_install.md)
 was called.
 
 ## Usage

@@ -4,7 +4,7 @@ Efficiently constructs a text file of MOTIS one-to-many street routing
 queries for batch processing. Also writes a metadata sidecar file
 (`{output_file}.meta`) that records the origin and destination IDs for
 each query line, enabling reliable reconstruction of results via
-[`motis_one_to_many_read_batch()`](https://www.ekotov.pro/rmotis/reference/motis_one_to_many_read_batch.md).
+[`motis_one_to_many_read_batch()`](http://www.ekotov.pro/rmotis/reference/motis_one_to_many_read_batch.md).
 
 ## Usage
 

@@ -24,13 +24,13 @@ motis_gui(
   Optional. Can be:
 
   - A `motis_server` object (process) returned by
-    [`motis_start_server()`](https://www.ekotov.pro/rmotis/reference/motis_start_server.md).
+    [`motis_start_server()`](http://www.ekotov.pro/rmotis/reference/motis_start_server.md).
 
   - A path string to a MOTIS working directory (contains `config.yml`
     and `data/`).
 
   - `NULL` (default): Auto-detects a running MOTIS server using
-    [`motis_servers()`](https://www.ekotov.pro/rmotis/reference/motis_servers.md).
+    [`motis_servers()`](http://www.ekotov.pro/rmotis/reference/motis_servers.md).
 
 - port:
 

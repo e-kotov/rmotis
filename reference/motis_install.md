@@ -24,7 +24,7 @@ motis_install(
   A string specifying the MOTIS version tag to install. Defaults to
   `"latest"`, which automatically finds the most recent stable version
   by calling
-  [`motis_check_latest_version()`](https://www.ekotov.pro/rmotis/reference/motis_check_latest_version.md).
+  [`motis_check_latest_version()`](http://www.ekotov.pro/rmotis/reference/motis_check_latest_version.md).
   Ignored if `file` is provided.
 
 - file:

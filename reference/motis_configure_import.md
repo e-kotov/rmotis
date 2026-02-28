@@ -2,7 +2,7 @@
 
 Updates the `config.yml` file in the root directory, which is used
 during the
-[`motis_import()`](https://www.ekotov.pro/rmotis/reference/motis_import.md)
+[`motis_import()`](http://www.ekotov.pro/rmotis/reference/motis_import.md)
 process. This allows you to adjust how the data is preprocessed (e.g.,
 matching distances, footpath lengths).
 

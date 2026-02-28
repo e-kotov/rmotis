@@ -2,7 +2,7 @@
 
 Generate a batch query file for multiple origins with spatial
 optimizations. This function wraps
-[`motis_one_to_many_generate_batch()`](https://www.ekotov.pro/rmotis/reference/motis_one_to_many_generate_batch.md)
+[`motis_one_to_many_generate_batch()`](http://www.ekotov.pro/rmotis/reference/motis_one_to_many_generate_batch.md)
 and iterates over origins, applying spatial sorting and filtering for
 improved performance.
 
@@ -34,12 +34,12 @@ motis_one_to_many_plan_batch(
 - one:
 
   Origins. Same as
-  [`motis_one_to_many_batch()`](https://www.ekotov.pro/rmotis/reference/motis_one_to_many_batch.md).
+  [`motis_one_to_many_batch()`](http://www.ekotov.pro/rmotis/reference/motis_one_to_many_batch.md).
 
 - many:
 
   Destinations. Same as
-  [`motis_one_to_many_batch()`](https://www.ekotov.pro/rmotis/reference/motis_one_to_many_batch.md).
+  [`motis_one_to_many_batch()`](http://www.ekotov.pro/rmotis/reference/motis_one_to_many_batch.md).
 
 - output_file:
 
@@ -124,7 +124,7 @@ This function is a convenience wrapper that:
     - Filters destinations to a bounding box (`spatial_filter_km`)
 
     - Calls
-      [`motis_one_to_many_generate_batch()`](https://www.ekotov.pro/rmotis/reference/motis_one_to_many_generate_batch.md)
+      [`motis_one_to_many_generate_batch()`](http://www.ekotov.pro/rmotis/reference/motis_one_to_many_generate_batch.md)
       with `append = TRUE`
 
 3.  Returns file metadata
@@ -141,5 +141,5 @@ This function is a convenience wrapper that:
 
 ## See also
 
-[`motis_one_to_many_batch()`](https://www.ekotov.pro/rmotis/reference/motis_one_to_many_batch.md),
-[`motis_one_to_many_generate_batch()`](https://www.ekotov.pro/rmotis/reference/motis_one_to_many_generate_batch.md)
+[`motis_one_to_many_batch()`](http://www.ekotov.pro/rmotis/reference/motis_one_to_many_batch.md),
+[`motis_one_to_many_generate_batch()`](http://www.ekotov.pro/rmotis/reference/motis_one_to_many_generate_batch.md)
