@@ -1,16 +1,16 @@
 # Implementation Plan: server_config_validation_20260228
 
-## Phase 1: Registry Enhancement and Config Access
+## Phase 1: Registry Enhancement and Config Access [checkpoint: 0da9330]
 - [x] Task: Update `motis_start_server()` to capture `config.yml` absolute path.
 - [x] Task: Update server registry to store `config_path` and persist it.
 - [x] Task: Implement/Enhance `read_motis_config()` to robustly extract `limits` section from YAML.
-- [~] Task: Conductor - User Manual Verification 'Phase 1: Registry Enhancement' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 1: Registry Enhancement' (Protocol in workflow.md)
 
 ## Phase 2: Validation Hook Implementation
-- [ ] Task: Write tests for `.motis_validate_args()` covering local (error) and remote (warning) scenarios.
-- [ ] Task: Implement `.motis_validate_args()` helper in `helpers.R`.
-- [ ] Task: Implement a helper to generate the copy-pasteable reconfiguration command.
-- [ ] Task: Conductor - User Manual Verification 'Phase 2: Validation Hook' (Protocol in workflow.md)
+- [x] Task: Write tests for `.motis_validate_args()` covering local (error) and remote (warning) scenarios.
+- [x] Task: Implement `.motis_validate_args()` helper in `helpers.R`.
+- [x] Task: Implement a helper to generate the copy-pasteable reconfiguration command.
+- [~] Task: Conductor - User Manual Verification 'Phase 2: Validation Hook' (Protocol in workflow.md)
 
 ## Phase 3: Function Integration
 - [ ] Task: Integrate validation hook into `motis_plan()` and `motis_plan_txt_1()`.

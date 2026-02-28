@@ -18,6 +18,120 @@ debug_msg <- function(...) {
   getOption("rmotis.url")
 }
 
+# Helper to identify if current server is local and get its config
+.get_local_server_config <- function() {
+  url <- .get_server_url()
+  if (is.null(url)) return(NULL)
+  
+  # Check if it's localhost or 127.0.0.1
+  is_local <- grepl("localhost|127\\.0\\.0\\.1", url)
+  if (!is_local) return(NULL)
+  
+  # Extract port
+  port_match <- regexpr(":[0-9]+", url)
+  if (port_match == -1) return(NULL)
+  port <- as.integer(substr(url, port_match + 1, port_match + attr(port_match, "match.length") - 1))
+  
+  # Find in registry
+  reg <- motis_servers(include_all = TRUE)
+  # Exact port match and must have a config_path
+  found <- reg[reg$port == port & !is.na(reg$config_path) & reg$alive, ]
+  if (nrow(found) == 0) return(NULL)
+  
+  # Take the first one (usually unique per port)
+  config_path <- found$config_path[1]
+  
+  # Read config
+  tryCatch(read_motis_config(config_path), error = function(e) NULL)
+}
+
+#' Internal hook to validate API arguments against server configuration
+#' @param n_many Number of many locations (for one-to-many)
+#' @param max_travel_time Max travel time in minutes (for one-to-all)
+#' @param num_itineraries Number of itineraries (for plan)
+#' @param search_window Search window in minutes (for plan)
+#' @noRd
+.motis_validate_args <- function(n_many = NULL, 
+                                 max_travel_time = NULL, 
+                                 num_itineraries = NULL, 
+                                 search_window = NULL) {
+  url <- .get_server_url()
+  if (is.null(url)) return(invisible(NULL))
+  
+  conf <- .get_local_server_config()
+  
+  # If not local or no config found, issue a session warning for remote
+  if (is.null(conf)) {
+    # Check if we already warned for this URL in this session
+    warned_urls <- getOption("rmotis.warned_urls", character(0))
+    if (!url %in% warned_urls) {
+      warning("Remote server detected (", url, "). Configuration limits cannot be verified. 
+Please ensure the server is configured to handle your request volume.", call. = FALSE)
+      options(rmotis.warned_urls = c(warned_urls, url))
+    }
+    return(invisible(NULL))
+  }
+  
+  # Local server validation
+  limits <- conf$limits
+  if (is.null(limits)) return(invisible(NULL))
+  
+  errors <- list()
+  
+  check_limit <- function(val, limit_name, label) {
+    limit_val <- limits[[limit_name]]
+    if (!is.null(val) && !is.null(limit_val) && val > limit_val) {
+      errors[[limit_name]] <<- sprintf(
+        "Value '%s' (%s) exceeds the server limit '%s' (%s).",
+        label, val, limit_name, limit_val
+      )
+    }
+  }
+  
+  check_limit(n_many, "onetomany_max_many", "number of many locations")
+  check_limit(max_travel_time, "onetoall_max_travel_minutes", "max travel time")
+  check_limit(num_itineraries, "plan_max_results", "number of itineraries")
+  check_limit(search_window, "plan_max_search_window_minutes", "search window")
+  
+  if (length(errors) > 0) {
+    # Construct actionable error message
+    reconf_cmds <- vapply(names(errors), function(nm) {
+      val <- if (nm == "onetomany_max_many") n_many else 
+             if (nm == "onetoall_max_travel_minutes") max_travel_time else
+             if (nm == "plan_max_results") num_itineraries else
+             if (nm == "plan_max_search_window_minutes") search_window else NULL
+      sprintf("%s = %s", nm, val)
+    }, character(1))
+    
+    # Get the work_dir from registry to suggest the correct path
+    reg <- motis_servers(include_all = TRUE)
+    port_match <- regexpr(":[0-9]+", url)
+    port <- as.integer(substr(url, port_match + 1, port_match + attr(port_match, "match.length") - 1))
+    found <- reg[reg$port == port & !is.na(reg$work_dir), ]
+    work_dir_msg <- if (nrow(found) > 0) sprintf('work_dir = "%s"', found$work_dir[1]) else 'work_dir = "YOUR_WORK_DIR"'
+    
+    msg <- paste0(
+      "MOTIS server limit exceeded:
+",
+      paste("- ", errors, collapse = "
+"),
+      "
+
+To fix this, reconfigure your local server with higher limits:
+",
+      "1. motis_stop_server()
+",
+      sprintf("2. motis_config(%s, limits = list(%s))
+", work_dir_msg, paste(reconf_cmds, collapse = ", ")),
+      "3. motis_start_server(work_dir = ...)
+"
+    )
+    stop(msg, call. = FALSE)
+  }
+  
+  invisible(NULL)
+}
+
 # get leg polyline points + precision from either 'legGeometry' or legacy 'polyline'
 .leg_polyline <- function(leg) {
   if (!is.list(leg)) return(NULL)
