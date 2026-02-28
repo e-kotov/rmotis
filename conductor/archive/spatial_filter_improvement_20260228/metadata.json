@@ -1,0 +1,8 @@
+{
+  "track_id": "spatial_filter_improvement_20260228",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-02-28T16:00:00Z",
+  "updated_at": "2026-02-28T16:00:00Z",
+  "description": "Improve spatial filter functionality for public transit intermodal one-to-many. Compare current algorithm (km to degrees bounding box) with sf. Benchmark speed for different number of points. Add a special argument 'spatial_filter_km' for a fixed straight-line radius."
+}
