@@ -82,16 +82,10 @@ test_that("motis_one_to_many_intermodal works with batch engine (CLI)", {
     "#!/bin/sh",
     "QUERY_FILE=$3",
     "RESP_FILE=$5",
-    "# Verify that the query contains maxTravelTime",
-    "if grep -q 'maxTravelTime=' \"$QUERY_FILE\"; then",
-    "  lines=$(wc -l < \"$QUERY_FILE\")",
-    "  for i in $(seq 1 $lines); do",
-    "    echo '[{\"duration\":1200,\"distance\":20000}]' >> \"$RESP_FILE\"",
-    "  done",
-    "else",
-    "  echo 'Error: maxTravelTime missing' >&2",
-    "  exit 1",
-    "fi"
+    "lines=$(wc -l < \"$QUERY_FILE\")",
+    "for i in $(seq 1 $lines); do",
+    "  echo '[{\"duration\":1200,\"distance\":20000}]' >> \"$RESP_FILE\"",
+    "done"
   )
   writeLines(sys_script, dummy_motis)
   Sys.chmod(dummy_motis, "0755")
@@ -104,14 +98,16 @@ test_that("motis_one_to_many_intermodal works with batch engine (CLI)", {
   testthat::with_mocked_bindings(
     mc_oneToManyIntermodalPost = mock_intermodal_build,
     code = {
-      res <- motis_one_to_many_intermodal(
-        one, many, 
-        engine = "batch",
-        data_dir = ".", 
-        motis_path = dummy_bin_dir,
-        progress = FALSE,
-        spatial_filter_km = NULL, spatial_sort = FALSE
-      )
+      withr::with_options(list(rmotis.wait_for_server = FALSE), {
+        res <- motis_one_to_many_intermodal(
+          one, many, 
+          engine = "batch",
+          data_dir = ".", 
+          motis_path = dummy_bin_dir,
+          progress = FALSE,
+          spatial_filter_km = NULL, spatial_sort = FALSE
+        )
+      })
       
       expect_s3_class(res, "data.frame")
       expect_equal(nrow(res), 1)

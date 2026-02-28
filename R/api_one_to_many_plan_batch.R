@@ -65,7 +65,8 @@ motis_one_to_many_plan_batch <- function(
   spatial_filter_km = NULL,
   spatial_sort = TRUE,
   progress = TRUE,
-  api_endpoint = "/api/v1/one-to-many"
+  api_endpoint = "/api/v1/one-to-many",
+  duration_key = "max"
 ) {
   mode <- match.arg(mode)
 
@@ -167,6 +168,7 @@ motis_one_to_many_plan_batch <- function(
       ...,
       append = (i > 1), # First iteration creates file, rest append
       api_endpoint = api_endpoint,
+      duration_key = duration_key,
       quiet = !progress
     )
   }

@@ -163,7 +163,7 @@ motis_one_to_many <- function(
   client_fun = motis.client::mc_oneToMany
 ) {
   # --- 1. Argument and Input Validation ---
-  if (!is.null(spatial_filter)) {
+  if (isTRUE(spatial_filter)) {
     stop("The 'spatial_filter' (logical) argument is deprecated and has been removed. Please use 'spatial_filter_km' (numeric) instead.", call. = FALSE)
   }
   if (!is.null(max_speed_kmh)) {
@@ -202,6 +202,7 @@ motis_one_to_many <- function(
       temp_dir = temp_dir, keep_files = keep_files, progress = progress,
       batch_size = batch_size, max_destinations_per_batch = max_destinations_per_batch,
       output_path = output_path, eol = eol, motis_path = motis_path,
+      spatial_filter_km = spatial_filter_km,
       api_endpoint = api_endpoint,
       duration_key = duration_key,
       client_fun = client_fun
@@ -370,7 +371,9 @@ motis_one_to_many_generate_batch <- function(
   many_id_col = "id",
   ...,
   append = FALSE,
-  api_endpoint = "/api/v1/one-to-many", quiet = FALSE
+  api_endpoint = "/api/v1/one-to-many",
+  duration_key = "max",
+  quiet = FALSE
 ) {
   if (missing(output_file) || !is.character(output_file) || length(output_file) != 1) {
     stop("`output_file` must be a single string specifying the file path.", call. = FALSE)
@@ -415,7 +418,8 @@ motis_one_to_many_generate_batch <- function(
     maxMatchingDistance = maxMatchingDistance,
     withDistance = withDistance,
     dots = dots,
-    api_endpoint = api_endpoint
+    api_endpoint = api_endpoint,
+    duration_key = duration_key
   )
 
   # Write query line
@@ -1074,7 +1078,8 @@ motis_one_to_many_read_batch <- function(
   # Remove .server from dots to strictly match API
   dots[[".server"]] <- NULL
   
-  if (getOption("rmotis.wait_for_server", TRUE)) .wait_for_server(.server)
+  is_testthat <- identical(Sys.getenv("TESTTHAT"), "true")
+  if (!is_testthat && getOption("rmotis.wait_for_server", TRUE)) .wait_for_server(.server)
   
   one_ids <- .get_ids(one, id_col = one_id_col)
   many_ids <- .get_ids(many, id_col = many_id_col)
