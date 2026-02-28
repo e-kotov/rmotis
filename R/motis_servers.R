@@ -9,7 +9,8 @@ motis_servers <- function(include_all = FALSE) {
     if (length(list_data) == 0) {
       return(data.frame(
         id = character(0), pid = integer(0), port = integer(0), 
-        work_dir = character(0), alive = logical(0), external = logical(0),
+        work_dir = character(0), config_path = character(0),
+        alive = logical(0), external = logical(0),
         stringsAsFactors = FALSE
       ))
     }
@@ -18,7 +19,8 @@ motis_servers <- function(include_all = FALSE) {
       alive <- if (!is.null(x$proc)) x$proc$is_alive() else .motis_pid_is_running(x$pid)
       data.frame(
         id = x$id, pid = x$pid, port = x$port, 
-        work_dir = x$work_dir, alive = alive, external = external,
+        work_dir = x$work_dir, config_path = x$config_path %||% NA_character_,
+        alive = alive, external = external,
         stringsAsFactors = FALSE
       )
     }))

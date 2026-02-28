@@ -1,10 +1,10 @@
 # Implementation Plan: server_config_validation_20260228
 
 ## Phase 1: Registry Enhancement and Config Access
-- [ ] Task: Update `motis_start_server()` to capture `config.yml` absolute path.
-- [ ] Task: Update server registry to store `config_path` and persist it.
-- [ ] Task: Implement/Enhance `read_motis_config()` to robustly extract `limits` section from YAML.
-- [ ] Task: Conductor - User Manual Verification 'Phase 1: Registry Enhancement' (Protocol in workflow.md)
+- [x] Task: Update `motis_start_server()` to capture `config.yml` absolute path.
+- [x] Task: Update server registry to store `config_path` and persist it.
+- [x] Task: Implement/Enhance `read_motis_config()` to robustly extract `limits` section from YAML.
+- [~] Task: Conductor - User Manual Verification 'Phase 1: Registry Enhancement' (Protocol in workflow.md)
 
 ## Phase 2: Validation Hook Implementation
 - [ ] Task: Write tests for `.motis_validate_args()` covering local (error) and remote (warning) scenarios.
