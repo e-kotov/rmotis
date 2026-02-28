@@ -1361,14 +1361,27 @@ motis_one_to_many_read_batch <- function(
         
         # Professional degree conversion
         .km_to_deg <- function(radius_km, lat) {
-          # Use a conservative radius (polar radius ~6357km) 
-          # to ensure we are more inclusive at the equator.
-          R <- 6357
-          lat_deg <- (radius_km / R) * (180 / pi)
-          lat_rad <- abs(lat) * (pi / 180)
-          if (lat_rad > 1.55) lat_rad <- 1.55 # ~89 degrees
-          lon_deg <- lat_deg / cos(lat_rad)
-          list(lat = lat_deg, lon = lon_deg)
+          # WGS84 Ellipsoid Constants
+          a <- 6378.137    # Semi-major axis (Equatorial radius)
+          b <- 6356.752314 # Semi-minor axis (Polar radius)
+          lat_rad <- lat * (pi / 180)
+          e2 <- (a^2 - b^2) / a^2
+          N <- a / sqrt(1 - e2 * (sin(lat_rad)^2))
+          deg_lat_km <- (pi / 180) * (a * (1 - e2)) / ((1 - e2 * (sin(lat_rad)^2))^(1.5))
+          deg_lon_km <- (pi / 180) * N * cos(lat_rad)
+          
+          # Add a 1% safety buffer to offsets only to account for ellipsoidal chord distortion
+          # This ensures the box always contains the circle.
+          r_buf <- radius_km * 1.01
+          lat_deg <- r_buf / deg_lat_km
+          lon_deg <- if (abs(lat) > 89.9) 360 else r_buf / deg_lon_km
+          
+          list(
+            lat = lat_deg, 
+            lon = lon_deg, 
+            deg_lat_km = deg_lat_km, 
+            deg_lon_km = deg_lon_km
+          )
         }
         
         # Spatial Filter Logic (Same as before)
