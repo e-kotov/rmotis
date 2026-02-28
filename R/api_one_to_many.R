@@ -731,13 +731,23 @@ motis_one_to_many_read_batch <- function(
       origin_lat <- one_coords[i, "lat"]
       origin_lon <- one_coords[i, "lon"]
       
-      # Professional degree conversion
-      radii <- .km_to_deg(max_radius_km, origin_lat)
+      # Professional degree conversion (returns offsets + scaling factors)
+      radii <- .km_to_deg(spatial_filter_km, origin_lat)
       
-      # Bounding box filter
+      # Step 1: Bounding box filter (Fast pruning)
       lat_diff <- abs(many_coords[, "lat"] - origin_lat)
       lon_diff <- abs(many_coords[, "lon"] - origin_lon)
-      keep_idx <- which(lat_diff <= radii$lat & lon_diff <= radii$lon)
+      cand_idx <- which(lat_diff <= radii$lat & lon_diff <= radii$lon)
+      
+      if (length(cand_idx) == 0) next
+      
+      # Step 2: Euclidean refinement (Circular)
+      dx <- (many_coords[cand_idx, "lon"] - origin_lon) * radii$deg_lon_km
+      dy <- (many_coords[cand_idx, "lat"] - origin_lat) * radii$deg_lat_km
+      
+      # We use a 1% buffer squared for robustness (matches radii$lat/lon buffer)
+      r2 <- (spatial_filter_km * 1.01)^2
+      keep_idx <- cand_idx[which(dx^2 + dy^2 <= r2)]
       
       if (length(keep_idx) == 0) next
       
@@ -1373,13 +1383,32 @@ motis_one_to_many_read_batch <- function(
            origin_lat <- parts[1]
            origin_lon <- parts[2]
            
-           # Professional degree conversion
+           # Professional degree conversion (returns offsets + scaling factors)
            radii <- .km_to_deg(max_radius_km, origin_lat)
            
+           # Step 1: Bounding box filter (Fast pruning)
            lat_diff <- abs(many_coords[, "lat"] - origin_lat)
            lon_diff <- abs(many_coords[, "lon"] - origin_lon)
-           keep_idx <- which(lat_diff <= radii$lat & lon_diff <= radii$lon)
+           cand_idx <- which(lat_diff <= radii$lat & lon_diff <= radii$lon)
            
+           if (length(cand_idx) == 0) {
+              # Return empty result
+              return(data.frame(
+                from_id = if (arrive_by) character(0) else one_id,
+                to_id = if (arrive_by) one_id else character(0),
+                duration_s = numeric(0), distance_m = numeric(0),
+                stringsAsFactors = FALSE
+              ))
+           }
+
+           # Step 2: Euclidean refinement (Circular)
+           dx <- (many_coords[cand_idx, "lon"] - origin_lon) * radii$deg_lon_km
+           dy <- (many_coords[cand_idx, "lat"] - origin_lat) * radii$deg_lat_km
+           
+           # We use a 1% buffer squared for robustness (matches radii$lat/lon buffer)
+           r2 <- (max_radius_km * 1.01)^2
+           keep_idx <- cand_idx[which(dx^2 + dy^2 <= r2)]
+
            if (length(keep_idx) == 0) {
               # Return empty result
               return(data.frame(
@@ -1559,13 +1588,28 @@ motis_one_to_many_read_batch <- function(
       origin_lat <- one_coords[idx, "lat"]
       origin_lon <- one_coords[idx, "lon"]
       
-      # Professional degree conversion
+      # Professional degree conversion (returns offsets + scaling factors)
       radii <- .km_to_deg(max_radius_km, origin_lat)
       
+      # Step 1: Bounding box filter (Fast pruning)
       lat_diff <- abs(many_coords[, "lat"] - origin_lat)
       lon_diff <- abs(many_coords[, "lon"] - origin_lon)
-      keep_idx <- which(lat_diff <= radii$lat & lon_diff <= radii$lon)
+      cand_idx <- which(lat_diff <= radii$lat & lon_diff <= radii$lon)
       
+      if (length(cand_idx) == 0) {
+        origin_metadata[[i]] <- list(origin_id = origin_id, dest_ids = character(0), request_idx = NA_integer_)
+        requests[[i]] <- NULL
+        next
+      }
+
+      # Step 2: Euclidean refinement (Circular)
+      dx <- (many_coords[cand_idx, "lon"] - origin_lon) * radii$deg_lon_km
+      dy <- (many_coords[cand_idx, "lat"] - origin_lat) * radii$deg_lat_km
+      
+      # We use a 1% buffer squared for robustness (matches radii$lat/lon buffer)
+      r2 <- (max_radius_km * 1.01)^2
+      keep_idx <- cand_idx[which(dx^2 + dy^2 <= r2)]
+
       if (length(keep_idx) == 0) {
         origin_metadata[[i]] <- list(origin_id = origin_id, dest_ids = character(0), request_idx = NA_integer_)
         requests[[i]] <- NULL
